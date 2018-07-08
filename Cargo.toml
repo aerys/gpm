@@ -1,0 +1,19 @@
+[package]
+name = "gpm"
+version = "0.1.0"
+authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
+
+[dependencies.gitlfs]
+path = "./gitlfs"
+
+[dependencies]
+clap = "2.32.0"
+tempfile = "3"
+tar = "0.4"
+log = "0.4.3"
+pretty_env_logger = "0.2.3"
+git2 = "0.7.2"
+url = "1.7.1"
+ssh2 = "0.3"
+json = "0.11.13"
+reqwest = "0.8.6"
