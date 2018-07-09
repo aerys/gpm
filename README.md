@@ -1,6 +1,6 @@
 # GPM
 
-A statically linked native binary, platform agnostic, Git-based package manager written in Rust.
+A statically linked, native, platform agnostic Git-based package manager written in Rust.
 
 <!-- TOC depthFrom:2 -->
 
@@ -53,7 +53,9 @@ docker run \
 
 ## Authentication
 
-For now, only authentication through a passphrase-less SSH private key is supported.
+If the repository is "public", then no authentication should be required.
+
+Otherwise, for now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
 ## Package reference formatting
@@ -173,14 +175,14 @@ GPM can be used to leverage any Git repository as a package repository.
 Platforms like GitLab and GitHub are then very handy to manage such package archives, permissions, etc...
 
 GPM is also available as an all-in-one static binary.
-It can be used to download some packages that will be used to bootrasp a more complex provisioing process.
+It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
 ### Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
 Git is great to manage revisions. So it's great at managing package versions!
-For example, Git is also use by the Docker registry to store Docker images.
+For example, Git is also used by the Docker registry to store Docker images.
 
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
@@ -192,4 +194,4 @@ You certainly don't want to checkout all the versions of all your packages every
 
 That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM repositories.
 
-Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the an actual binary package only when it is are actually required.
+Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
