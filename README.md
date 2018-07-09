@@ -4,29 +4,29 @@ A statically linked, native, platform agnostic Git-based package manager written
 
 <!-- TOC depthFrom:2 -->
 
-- [Build](#build)
-    - [Development build](#development-build)
-    - [Release (static) build](#release-static-build)
-- [Authentication](#authentication)
-- [Package reference formatting](#package-reference-formatting)
-    - [Refspec](#refspec)
-    - [URI](#uri)
-- [Logging](#logging)
-- [Commands](#commands)
-    - [`update`](#update)
-    - [`clean`](#clean)
-    - [`install`](#install)
-    - [`download`](#download)
-- [FAQ](#faq)
-    - [Why GPM?](#why-gpm)
-    - [Why Git? Why not just `curl` or `wget` or whatever?](#why-git-why-not-just-curl-or-wget-or-whatever)
-    - [But Git does not like large binary files!](#but-git-does-not-like-large-binary-files)
+- [1. Build](#1-build)
+    - [1.1. Development build](#11-development-build)
+    - [1.2. Release (static) build](#12-release-static-build)
+- [2. Authentication](#2-authentication)
+- [3. Package reference formatting](#3-package-reference-formatting)
+    - [3.1. Refspec](#31-refspec)
+    - [3.2. URI](#32-uri)
+- [4. Logging](#4-logging)
+- [5. Commands](#5-commands)
+    - [5.1. `update`](#51-update)
+    - [5.2. `clean`](#52-clean)
+    - [5.3. `install`](#53-install)
+    - [5.4. `download`](#54-download)
+- [6. FAQ](#6-faq)
+    - [6.1. Why GPM?](#61-why-gpm)
+    - [6.2. Why Git? Why not just `curl` or `wget` or whatever?](#62-why-git-why-not-just-curl-or-wget-or-whatever)
+    - [6.3. But Git does not like large binary files!](#63-but-git-does-not-like-large-binary-files)
 
 <!-- /TOC -->
 
-## Build
+## 1. Build
 
-### Development build
+### 1.1. Development build
 
 Dependencies:
 
@@ -37,7 +37,7 @@ Dependencies:
 cargo build
 ```
 
-### Release (static) build
+### 1.2. Release (static) build
 
 Dependencies:
 
@@ -52,16 +52,16 @@ docker run \
     cargo build --release --target x86_64-unknown-linux-musl
 ```
 
-## Authentication
+## 2. Authentication
 
 If the repository is "public", then no authentication should be required.
 
 Otherwise, for now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
-## Package reference formatting
+## 3. Package reference formatting
 
-### Refspec
+### 3.1. Refspec
 
 A package can be referenced using a Git refspec.
 The best practice is to use a Git tag with the following format:
@@ -82,7 +82,7 @@ For such package reference to be found, you *must* make sure:
 * the repository where that package is stored is listed in `~/.gpm/sources.list`,
 * the cache has been populated by calling `gpm update`.
 
-### URI
+### 3.2. URI
 
 A package can also be referenced using a full Git URI formatted like this:
 
@@ -100,7 +100,7 @@ Example:
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
 
-## Logging
+## 4. Logging
 
 By default, `gpm` will echo nothing on stdout.
 Logs can be enable by setting the `GPM_LOG` environment variable to one of the following values:
@@ -118,9 +118,9 @@ For example:
 export GPM_LOG=gpm=debug,gitlfs=debug
 ```
 
-## Commands
+## 5. Commands
 
-### `update`
+### 5.1. `update`
 
 Update the cache to feature the latest revision of each repository listed in `~/.gpm/sources.list`.
 
@@ -135,7 +135,7 @@ echo "ssh://github.com/my/other-packages.git" >> ~/.gpm/sources.list
 gpm update
 ```
 
-### `clean`
+### 5.2. `clean`
 
 Clean the cache. The cache is located in `~/.gpm/cache`.
 Cache can be rebuilt using the `update` command.
@@ -144,7 +144,7 @@ Cache can be rebuilt using the `update` command.
 gpm clean
 ```
 
-### `install`
+### 5.3. `install`
 
 Download and install a package.
 
@@ -163,7 +163,7 @@ gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm install app/2.0 --prefix /var/www/app
 ```
 
-### `download`
+### 5.4. `download`
 
 Download a package in the current working directory.
 
@@ -182,9 +182,9 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## FAQ
+## 6. FAQ
 
-### Why GPM?
+### 6.1. Why GPM?
 
 GPM means "Git-based Package Manager".
 
@@ -196,7 +196,7 @@ Platforms like GitLab and GitHub are then very handy to manage such package arch
 GPM is also available as an all-in-one static binary.
 It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
-### Why Git? Why not just `curl` or `wget` or whatever?
+### 6.2. Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
@@ -206,7 +206,7 @@ For example, Git is also used by the Docker registry to store Docker images.
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
 
-### But Git does not like large binary files!
+### 6.3. But Git does not like large binary files!
 
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
