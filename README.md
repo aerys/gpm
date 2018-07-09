@@ -11,6 +11,7 @@ A statically linked, native, platform agnostic Git-based package manager written
 - [Package reference formatting](#package-reference-formatting)
     - [Refspec](#refspec)
     - [URI](#uri)
+- [Logging](#logging)
 - [Commands](#commands)
     - [`update`](#update)
     - [`clean`](#clean)
@@ -98,6 +99,24 @@ Example:
 
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
+
+## Logging
+
+By default, `gpm` will echo nothing on stdout.
+Logs can be enable by setting the `GPM_LOG` environment variable to one of the following values:
+
+* `trace`
+* `debug`
+* `info`
+* `warn`
+* `error`
+
+Logs can be *very* verbose. So it's best to keep only the `gpm` and `gitlfs` module logs.
+For example:
+
+```bash
+export GPM_LOG=gpm=debug,gitlfs=debug
+```
 
 ## Commands
 
