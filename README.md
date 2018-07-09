@@ -8,6 +8,8 @@ A statically linked native binary, platform agnostic, Git-based package manager 
     - [Development build](#development-build)
     - [Release (static) build](#release-static-build)
 - [Authentication](#authentication)
+- [Commands](#commands)
+    - [`install`](#install)
 - [FAQ](#faq)
     - [Why GPM?](#why-gpm)
     - [Why Git? Why not just `curl` or `wget` or whatever?](#why-git-why-not-just-curl-or-wget-or-whatever)
@@ -47,6 +49,21 @@ docker run \
 
 For now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
+
+## Commands
+
+### `install`
+
+Download and install a package.
+
+Example:
+
+```bash
+# install the "app" package at version 2.0 from repository ssh://github.com/my/awesome-packages.git
+# in the /var/www/app folder
+gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
+    --prefix /var/www/app
+```
 
 ## FAQ
 
