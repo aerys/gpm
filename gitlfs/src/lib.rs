@@ -104,7 +104,7 @@ pub mod lfs {
         Ok((header, url))
     }
 
-    pub fn resolve_lfs_link(repository : Url, p : &path::Path) -> Result<bool, io::Error> {
+    pub fn resolve_lfs_link(repository : Url, p : &path::Path, target : Option<&path::Path>) -> Result<bool, io::Error> {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
             None => return Ok(false),
@@ -118,7 +118,7 @@ pub mod lfs {
             Err(e) => panic!("unable to fetch LFS download link: {}", e),
         };
 
-        match download_lfs_object(p, &auth_token, &url) {
+        match download_lfs_object(target.unwrap_or(p), &auth_token, &url) {
             Ok(()) => Ok(true),
             Err(e) => panic!("failed to donwload LFS object: {}", e),
         }
@@ -176,13 +176,14 @@ pub mod lfs {
         auth_token : &String,
         url : &String,
     ) -> Result<(), reqwest::Error> {
+        debug!("preparing to download LFS object in {}", path.to_str().unwrap());
+
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)
             .expect("unable to open LFS object target file");
-
-        file.set_len(0).expect("unable to clear LFS object target file content");
 
         debug!("start downloading LFS object into {}", path.to_str().unwrap());
 

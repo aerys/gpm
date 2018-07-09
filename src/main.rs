@@ -1,8 +1,6 @@
 extern crate clap; 
 use clap::{App, Arg};
 
-extern crate tar;
-
 use std::io;
 
 #[macro_use]
@@ -24,6 +22,11 @@ use gitlfs::lfs;
 
 extern crate url;
 use url::{Url};
+
+extern crate zip;
+
+extern crate tempfile;
+use tempfile::tempdir;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -57,10 +60,17 @@ fn install_command(
     remote : &String,
     package : &String,
     version : &String,
+    prefix : &path::Path,
+    force : bool,
 ) -> Result<bool, CommandError> {
-    debug!("run install command for package {} at version {}", package, version);
+    info!("run install command for package {} at version {}", package, version);
 
-    let repo = get_or_init_repo(&cache, &remote).map_err(CommandError::Git)?;
+    let (repo, is_new_repo) = get_or_init_repo(&cache, &remote).map_err(CommandError::Git)?;
+
+    if !is_new_repo {
+        pull_repo(&repo).map_err(CommandError::Git)?;
+    }
+
     let refspec = format!("refs/tags/{}/{}", package, version);
     let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
     let mut builder = git2::build::CheckoutBuilder::new();
@@ -70,22 +80,106 @@ fn install_command(
     repo.set_head_detached(oid).map_err(CommandError::Git)?;
     repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
-    let paths = fs::read_dir(repo.workdir().unwrap()).unwrap();
+    let workdir = repo.workdir().unwrap();
+    let package_filename = format!("{}.zip", package);
+    let package_path = workdir.join(package).join(&package_filename);
 
-    debug!("explore repository to resolve LFS links");
-    for path in paths {
-        let p = path.unwrap().path();
-        if p.to_str().unwrap().ends_with(".tar.gz") {
-            lfs::resolve_lfs_link(remote.parse().unwrap(), &p).map_err(CommandError::IO)?;
-        }
+    if lfs::parse_lfs_link_file(&package_path).is_ok() {
+        let tmp_dir = tempdir().map_err(CommandError::IO)?;
+        let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
+
+        info!("start downloading archive {} from LFS", package_filename);
+        lfs::resolve_lfs_link(
+            remote.parse().unwrap(),
+            &package_path,
+            Some(&tmp_package_path),
+        ).map_err(CommandError::IO)?;
+        extract_package(&tmp_package_path, &prefix, force);
+    } else {
+        warn!("package {} does not use LFS", package);
+        extract_package(&package_path, &prefix, force);
     }
-    
-    // ! FIXME: resolve the LFS link into a temp file
-    // ! FIXME: extra the temp file
+
+    info!("package {} successfully installed at version {} in {}", package, version, prefix.display());
 
     // ? FIXME: reset back to HEAD?
 
     Ok(true)
+}
+
+fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
+    info!("fetching changes for repository {}", repo.workdir().unwrap().display());
+
+    let mut callbacks = git2::RemoteCallbacks::new();
+    callbacks.credentials(git_credentials_callback);
+
+    let mut opts = git2::FetchOptions::new();
+    opts.remote_callbacks(callbacks);
+    opts.download_tags(git2::AutotagOption::All);
+
+    let mut origin_remote = repo.find_remote("origin")?;
+    origin_remote.fetch(&["master"], Some(&mut opts), None)?;
+
+    let oid = repo.refname_to_id("refs/remotes/origin/master")?;
+    let object = repo.find_object(oid, None)?;
+    repo.reset(&object, git2::ResetType::Hard, None)?;
+
+    let mut builder = git2::build::CheckoutBuilder::new();
+    builder.force();
+    repo.set_head("refs/heads/master")?;
+    repo.checkout_head(Some(&mut builder))?;
+
+    Ok(())
+}
+
+fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) {
+    let file = fs::File::open(&path).unwrap();
+    let mut archive = zip::ZipArchive::new(file).unwrap();
+    let mut num_extracted_files = 0;
+    let mut num_files = 0;
+
+    // ! FIXME: compare checksums to know if we're actually upgrading/making changes
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).unwrap();
+        let outpath = prefix.to_owned().join(file.sanitized_name());
+
+        num_files += 1;
+
+        if outpath.exists() && !force {
+            info!(
+                "file {} not extracted: path already exist, use --force to override",
+                outpath.as_path().display()
+            );
+            continue;
+        }
+
+        num_extracted_files += 1;
+
+        if (&*file.name()).ends_with('/') {
+            fs::create_dir_all(&outpath).unwrap();
+            info!("file {} extracted to \"{}\"", i, outpath.as_path().display());
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(&p).unwrap();
+                }
+            }
+           
+            let mut outfile = fs::File::create(&outpath).unwrap();
+            
+            io::copy(&mut file, &mut outfile).unwrap();
+
+            info!(
+                "file {} extracted to \"{}\" ({} bytes)",
+                i,
+                outpath.as_path().display(),
+                file.size()
+            );
+        }
+    }
+
+    info!("{} extracted files, {} files total", num_extracted_files, num_files);
 }
 
 fn init_cache_dir() -> Result<std::path::PathBuf, io::Error> {
@@ -122,7 +216,7 @@ pub fn git_credentials_callback(
     }
 }
 
-fn get_or_init_repo(cache : &std::path::Path, remote : &String) -> Result<git2::Repository, git2::Error> {
+fn get_or_init_repo(cache : &std::path::Path, remote : &String) -> Result<(git2::Repository, bool), git2::Error> {
     let data_url = match Url::parse(remote) {
         Ok(data_url) => data_url,
         Err(e) => panic!("failed to parse url: {}", e),
@@ -131,7 +225,7 @@ fn get_or_init_repo(cache : &std::path::Path, remote : &String) -> Result<git2::
 
     if path.exists() {
         debug!("use existing repository already in cache {}", path.to_str().unwrap());
-        return git2::Repository::open(path);
+        return Ok((git2::Repository::open(path)?, false));
     }
 
     let mut callbacks = git2::RemoteCallbacks::new();
@@ -146,12 +240,14 @@ fn get_or_init_repo(cache : &std::path::Path, remote : &String) -> Result<git2::
     builder.branch("master");
 
     debug!("start cloning repository {} in {}", remote, path.to_str().unwrap());
+
+    // ! FIXME: check .gitattributes for LFS, warn! if relevant
     
     match builder.clone(remote, &path) {
         Ok(r) => {
             debug!("repository cloned");
 
-            Ok(r)
+            Ok((r, true))
         },
         Err(e) => Err(e)
     }
@@ -201,7 +297,29 @@ fn main() {
             .help("the package URI")
             .index(2)
         )
+        .arg(Arg::with_name("prefix")
+            .help("the prefix to the package install path")
+            .default_value("/")
+            .long("--prefix")
+            .required(false)
+        )
+        .arg(Arg::with_name("force")
+            .help("replace existing files")
+            .long("--force")
+            .takes_value(false)
+            .required(false)
+        )
         .get_matches();
+
+    let force = matches.is_present("force");
+    let prefix = path::Path::new(matches.value_of("prefix").unwrap());
+
+    if !prefix.exists() {
+        panic!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
+    }
+    if !prefix.is_dir() {
+        panic!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+    }
 
     if matches.value_of("command").unwrap() == "install" {
         let package = String::from(matches.value_of("package").unwrap());
@@ -210,7 +328,7 @@ fn main() {
 
         debug!("parsed package URI: repo = {}, package = {}, version = {}", repo, package, version);
 
-        match install_command(&cache, &repo, &package, &version) {
+        match install_command(&cache, &repo, &package, &version, &prefix, force) {
             Ok(_bool) => trace!("successfully installed packaged {}", package),
             Err(e) => error!("could not install package \"{}\" with version {}: {}", package, version, e),
         }

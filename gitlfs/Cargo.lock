@@ -182,7 +182,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "git_lfs"
+name = "gitlfs"
 version = "0.1.0"
 dependencies = [
  "json 0.11.13 (registry+https://github.com/rust-lang/crates.io-index)",
