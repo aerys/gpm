@@ -1,21 +1,20 @@
+use std::fmt;
+use std::io;
+use std::io::prelude::*;
+use std::path;
+use std::ops::Deref;
+use std::env;
+use std::fs;
+
 extern crate clap; 
 use clap::{App, Arg};
-
-use std::io;
 
 #[macro_use]
 extern crate log;
 
 extern crate pretty_env_logger;
 
-use std::fmt;
-
 extern crate git2;
-
-use std::path;
-use std::ops::Deref;
-use std::env;
-use std::fs;
 
 extern crate gitlfs;
 use gitlfs::lfs;
@@ -55,8 +54,64 @@ impl fmt::Display for CommandError {
     }
 }
 
+fn clean_command() -> Result<bool, CommandError> {
+    info!("run clean command");
+
+    let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
+
+    if !cache.exists() || !cache.is_dir() {
+        warn!("{} does not exist or is not a directory", cache.display());
+
+        return Ok(false);
+    }
+
+    debug!("removing {}", cache.display());
+    fs::remove_dir_all(&cache).map_err(CommandError::IO)?;
+    debug!("{} removed", cache.display());
+
+    Ok(true)
+}
+
+fn update_command() -> Result<bool, CommandError> {
+    info!("run update command");
+
+    let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
+    let dot_gpm_dir = get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
+    let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
+
+    if !source_file_path.exists() || !source_file_path.is_file() {
+        warn!("{} does not exist or is not a file", source_file_path.display());
+
+        return Ok(false);
+    }
+
+    let file = fs::File::open(source_file_path)?;
+    let mut num_repos = 0;
+
+    for line in io::BufReader::new(file).lines() {
+        let line = line.unwrap();
+
+        info!("updating repository {}", line);
+
+        let (repo, _is_new_repo) = get_or_init_repo(&cache, &line).map_err(CommandError::Git)?;
+
+        pull_repo(&repo).map_err(CommandError::Git)?;
+
+        info!("updated repository {}", line);
+
+        num_repos += 1;
+    }
+
+    if num_repos > 1 {
+        info!("updated {} repositories", num_repos);
+    } else {
+        info!("updated {} repository", num_repos);
+    }
+
+    Ok(true)
+}
+
 fn download_command(
-    cache : &path::Path,
     remote : &String,
     package : &String,
     version : &String,
@@ -64,6 +119,7 @@ fn download_command(
 ) -> Result<bool, CommandError> {
     info!("run download command for package {} at version {}", package, version);
 
+    let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
     let (repo, is_new_repo) = get_or_init_repo(&cache, &remote).map_err(CommandError::Git)?;
 
     if !is_new_repo {
@@ -107,7 +163,6 @@ fn download_command(
 }
 
 fn install_command(
-    cache : &path::Path,
     remote : &String,
     package : &String,
     version : &String,
@@ -116,6 +171,9 @@ fn install_command(
 ) -> Result<bool, CommandError> {
     info!("run install command for package {} at version {}", package, version);
 
+    // ! FIXME: search in all repos if there is no remote provided
+
+    let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
     let (repo, is_new_repo) = get_or_init_repo(&cache, &remote).map_err(CommandError::Git)?;
 
     if !is_new_repo {
@@ -231,8 +289,22 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) {
     info!("{} extracted files, {} files total", num_extracted_files, num_files);
 }
 
-fn init_cache_dir() -> Result<std::path::PathBuf, io::Error> {
-    let cache = std::env::home_dir().unwrap().join(".gpm").join("cache");
+fn get_or_init_dot_gpm_dir() -> Result<std::path::PathBuf, io::Error> {
+    let dot_gpm = std::env::home_dir().unwrap().join(".gpm");
+
+    if !dot_gpm.exists() {
+        return match std::fs::create_dir_all(&dot_gpm) {
+            Ok(()) => Ok(dot_gpm),
+            Err(e) => Err(e)
+        }
+    }
+
+    Ok(dot_gpm)
+}
+
+fn get_or_init_cache_dir() -> Result<std::path::PathBuf, io::Error> {
+    let dot_gpm = get_or_init_dot_gpm_dir()?;
+    let cache = dot_gpm.join("cache");
 
     if !cache.exists() {
         return match std::fs::create_dir_all(&cache) {
@@ -329,67 +401,100 @@ fn parse_package_uri(url : &String) -> Result<(String, String, String), url::Par
 fn main() {
     pretty_env_logger::init_custom_env("GPM_LOG");
 
-    let cache = match init_cache_dir() {
-        Ok(cache) => cache,
-        Err(e) => panic!("failed to initialize cache directory: {}", e),
-    };
-
     let matches = App::new("gpm")
         .about("Git-based package manager.")
-        .arg(Arg::with_name("command")
-            .help("the command to run")
-            .value_names(&["install", "download"])
-            .index(1)
-            .requires("package")
-            .required(true)
+        .subcommand(clap::SubCommand::with_name("install")
+            .about("Install a package")
+            .arg(Arg::with_name("package"))
+            .arg(Arg::with_name("prefix")
+                .help("The prefix to the package install path")
+                .default_value("/")
+                .long("--prefix")
+                .required(false)
+            )
+            .arg(Arg::with_name("force")
+                .help("Replace existing files")
+                .long("--force")
+                .takes_value(false)
+                .required(false)
+            )
         )
-        .arg(Arg::with_name("package")
-            .help("the package URI")
-            .index(2)
+        .subcommand(clap::SubCommand::with_name("download")
+            .about("Download a package")
+            .arg(Arg::with_name("package"))
+            .arg(Arg::with_name("force")
+                .help("Replace existing files")
+                .long("--force")
+                .takes_value(false)
+                .required(false)
+            )
         )
-        .arg(Arg::with_name("prefix")
-            .help("the prefix to the package install path")
-            .default_value("/")
-            .long("--prefix")
-            .required(false)
+        .subcommand(clap::SubCommand::with_name("update")
+            .about("Update all package repositories")
         )
-        .arg(Arg::with_name("force")
-            .help("replace existing files")
-            .long("--force")
-            .takes_value(false)
-            .required(false)
+        .subcommand(clap::SubCommand::with_name("clean")
+            .about("Clean all repositories from cache")
         )
         .get_matches();
 
-    let force = matches.is_present("force");
-    let prefix = path::Path::new(matches.value_of("prefix").unwrap());
-
-    if !prefix.exists() {
-        panic!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
+    if let Some(_matches) = matches.subcommand_matches("update") {
+        match update_command() {
+            Ok(success) => {
+                if success {
+                    info!("package repositories successfully updated")
+                } else {
+                    error!("package repositories have not been updated")
+                }
+            },
+            Err(e) => error!("could not update repositories: {}", e),
+        }
     }
-    if !prefix.is_dir() {
-        panic!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+
+    if let Some(_matches) = matches.subcommand_matches("clean") {
+        match clean_command() {
+            Ok(success) => {
+                if success {
+                    info!("cache successfully cleaned")
+                } else {
+                    error!("cache has not been cleaned")
+                }
+            },
+            Err(e) => error!("could not clean cache: {}", e),
+        }
     }
 
-    if matches.value_of("command").unwrap() == "install" {
+    if let Some(matches) = matches.subcommand_matches("install") {
+        let force = matches.is_present("force");
+        let prefix = path::Path::new(matches.value_of("prefix").unwrap());
+
+        if !prefix.exists() {
+            panic!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
+        }
+        if !prefix.is_dir() {
+            panic!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+        }
+
         let package = String::from(matches.value_of("package").unwrap());
         let (repo, package, version) = parse_package_uri(&package)
             .expect("unable to parse package URI");
 
         debug!("parsed package URI: repo = {}, package = {}, version = {}", repo, package, version);
 
-        match install_command(&cache, &repo, &package, &version, &prefix, force) {
+        match install_command(&repo, &package, &version, &prefix, force) {
             Ok(_bool) => info!("package {} successfully installed at version {} in {}", package, version, prefix.display()),
             Err(e) => error!("could not install package \"{}\" with version {}: {}", package, version, e),
         }
-    } else if matches.value_of("command").unwrap() == "download" {
+    }
+
+    if let Some(matches) = matches.subcommand_matches("download") {
+        let force = matches.is_present("force");
         let package = String::from(matches.value_of("package").unwrap());
         let (repo, package, version) = parse_package_uri(&package)
             .expect("unable to parse package URI");
 
         debug!("parsed package URI: repo = {}, package = {}, version = {}", repo, package, version);
 
-        match download_command(&cache, &repo, &package, &version, force) {
+        match download_command(&repo, &package, &version, force) {
             Ok(success) => {
                 if success {
                     info!("package {} successfully downloaded at version {}", package, version);
