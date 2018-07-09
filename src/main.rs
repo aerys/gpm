@@ -55,6 +55,57 @@ impl fmt::Display for CommandError {
     }
 }
 
+fn download_command(
+    cache : &path::Path,
+    remote : &String,
+    package : &String,
+    version : &String,
+    force : bool,
+) -> Result<bool, CommandError> {
+    info!("run download command for package {} at version {}", package, version);
+
+    let (repo, is_new_repo) = get_or_init_repo(&cache, &remote).map_err(CommandError::Git)?;
+
+    if !is_new_repo {
+        pull_repo(&repo).map_err(CommandError::Git)?;
+    }
+
+    let refspec = format!("refs/tags/{}/{}", package, version);
+    let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
+    let mut builder = git2::build::CheckoutBuilder::new();
+    builder.force();
+
+    debug!("move repository HEAD to tag {}/{}", package, version);
+    repo.set_head_detached(oid).map_err(CommandError::Git)?;
+    repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
+
+    let workdir = repo.workdir().unwrap();
+    let package_filename = format!("{}.zip", package);
+    let package_path = workdir.join(package).join(&package_filename);
+    let cwd_package_path = env::current_dir().unwrap().join(&package_filename);
+
+    if cwd_package_path.exists() && !force {
+        info!("path {} already exist, use --force to override", cwd_package_path.display());
+        return Ok(false);
+    }
+
+    if lfs::parse_lfs_link_file(&package_path).is_ok() {
+
+        info!("start downloading archive {} from LFS", package_filename);
+        lfs::resolve_lfs_link(
+            remote.parse().unwrap(),
+            &package_path,
+            Some(&cwd_package_path),
+        ).map_err(CommandError::IO)?;
+    } else {
+        fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
+    }
+
+    // ? FIXME: reset back to HEAD?
+
+    Ok(true)
+}
+
 fn install_command(
     cache : &path::Path,
     remote : &String,
@@ -99,8 +150,6 @@ fn install_command(
         warn!("package {} does not use LFS", package);
         extract_package(&package_path, &prefix, force);
     }
-
-    info!("package {} successfully installed at version {} in {}", package, version, prefix.display());
 
     // ? FIXME: reset back to HEAD?
 
@@ -278,7 +327,7 @@ fn parse_package_uri(url : &String) -> Result<(String, String, String), url::Par
 }
 
 fn main() {
-    pretty_env_logger::init();
+    pretty_env_logger::init_custom_env("GPM_LOG");
 
     let cache = match init_cache_dir() {
         Ok(cache) => cache,
@@ -289,6 +338,7 @@ fn main() {
         .about("Git-based package manager.")
         .arg(Arg::with_name("command")
             .help("the command to run")
+            .value_names(&["install", "download"])
             .index(1)
             .requires("package")
             .required(true)
@@ -329,8 +379,25 @@ fn main() {
         debug!("parsed package URI: repo = {}, package = {}, version = {}", repo, package, version);
 
         match install_command(&cache, &repo, &package, &version, &prefix, force) {
-            Ok(_bool) => trace!("successfully installed packaged {}", package),
+            Ok(_bool) => info!("package {} successfully installed at version {} in {}", package, version, prefix.display()),
             Err(e) => error!("could not install package \"{}\" with version {}: {}", package, version, e),
+        }
+    } else if matches.value_of("command").unwrap() == "download" {
+        let package = String::from(matches.value_of("package").unwrap());
+        let (repo, package, version) = parse_package_uri(&package)
+            .expect("unable to parse package URI");
+
+        debug!("parsed package URI: repo = {}, package = {}, version = {}", repo, package, version);
+
+        match download_command(&cache, &repo, &package, &version, force) {
+            Ok(success) => {
+                if success {
+                    info!("package {} successfully downloaded at version {}", package, version);
+                } else {
+                    info!("package {} has not been downloaded", package);
+                }
+            },
+            Err(e) => error!("could not download package \"{}\" with version {}: {}", package, version, e),
         }
     }
 }
