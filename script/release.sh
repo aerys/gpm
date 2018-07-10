@@ -62,7 +62,7 @@ sed -i "s/version = \".*\"/version = \"$NEXT_VERSION\"/g" Cargo.toml
 cargo build
 
 # Commit the updated files above
-git commit -m "Release version $NEXT_VERSION." Cargo.toml Carto.lock
+git commit -m "Release version $NEXT_VERSION." Cargo.toml Cargo.lock
 git diff HEAD^..HEAD
 
 read -p "Are you sure you want to push these changes? (y|n)" -n 1 -r
