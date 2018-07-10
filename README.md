@@ -34,11 +34,28 @@ A statically linked, native, platform agnostic Git-based package manager written
 
 ### 1.1. Creating a package repository
 
-* Create a [git-lfs](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
-* Clone this repository on your local computer: ̀`git clone ssh://path.to/my/package-repository.git && cd package-repository`.
-* [Install git-lfs](https://github.com/git-lfs/git-lfs/wiki/Installation).
-* Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.zip` files: `git lfs track "*.zip"`.
-* Add, commit and push `.gitattributes`: `git add .gitattributes && git commit -a -m "Enable git-lfs." && git push`.
+1. Create a [git-lfs](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
+2. [Install git-lfs](https://github.com/git-lfs/git-lfs/wiki/Installation) on your local computer.
+3. Clone the newly created repository on your local computer:
+
+```bash
+git clone ssh://path.to/my/package-repository.git
+cd package-repository
+```
+
+4. Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.zip` files:
+
+```bash
+git lfs track "*.zip"
+```
+
+5. Add, commit and push `.gitattributes`:
+
+```bash
+git add .gitattributes
+git commit -a -m "Enable git-lfs."
+git push
+```
 
 Voilà! You're all set to publish your first package!
 
@@ -46,22 +63,67 @@ Voilà! You're all set to publish your first package!
 
 In this example, we're going to create a simple `hello-world` package and publish it.
 
-* Make sure you are at the root of the package repository created in the previous section.
-* Create and enter the package directory: `mkdir hello-world && cd hello-world`.
-* Create the `hello-world.sh` script: `echo "#/bin/sh\necho 'Hello World!'" > hello-world.sh`.
-* Create your package archive: `zip hello-world.zip hello-world.sh`.
-* Add and commit your package archive: `git add hello-world.zip && git commit hello-world.zip -m "Publish hello-world version 1.0"`.
-* Tag your package release with a specific version number: `git tag hello-world/1.0`.
-* Push your new package: `git push --tags`
+1. Make sure you are at the root of the package repository created in the previous section.
+2. Create and enter the package directory:
+
+```bash
+mkdir hello-world && cd hello-world
+```
+
+3. Create the `hello-world.sh` script:
+
+```bash
+echo "#/bin/sh\necho 'Hello World!'" > hello-world.sh
+```
+
+4. Create your package archive:
+
+```bash
+zip hello-world.zip hello-world.sh
+```
+
+5. Add and commit your package archive:
+
+```bash
+git add hello-world.zip
+git commit hello-world.zip -m "Publish hello-world version 1.0"
+```
+
+6. Tag your package release with a specific version number:
+
+```bash
+git tag hello-world/1.0
+```
+
+7. Push your new package:
+
+```bash
+git push --tags
+```
 
 Your `hello-world/1.0` package is now stored in your package repository and can be installed using `gpm`!
 
 ### 1.3. Installing your first package
 
-* Download or build `gpm`.
-* Add your package repository to the `gpm` sources: `mkdir -p ~/.gpm/sources.list && echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list`.
-* Update the `gpm` cache: `gpm update`.
-* Install your package: `gpm install hello-world/1.0 --prefix ~/`.
+1. Download or build `gpm`.
+2. Add your package repository to the `gpm` sources:
+
+```bash
+mkdir -p ~/.gpm/sources.list
+echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list
+```
+
+3. Update the `gpm` cache:
+
+```bash
+gpm update
+```
+
+4. Install your package:
+
+```bash
+gpm install hello-world/1.0 --prefix ~/
+```
 
 Your `hello-world/1.0` package is now installed and you can run it with `sh ~/hello-world.sh`.
 
