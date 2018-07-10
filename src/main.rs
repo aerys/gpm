@@ -245,7 +245,7 @@ fn install_command(
     let package_filename = format!("{}.zip", package);
     let package_path = workdir.join(package).join(&package_filename);
 
-    if lfs::parse_lfs_link_file(&package_path).is_ok() {
+    let (total, extracted) = if lfs::parse_lfs_link_file(&package_path).is_ok() {
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
         let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
 
@@ -255,15 +255,21 @@ fn install_command(
             &package_path,
             Some(&tmp_package_path),
         ).map_err(CommandError::IO)?;
-        extract_package(&tmp_package_path, &prefix, force);
+        
+        extract_package(&tmp_package_path, &prefix, force)
     } else {
         warn!("package {} does not use LFS", package);
-        extract_package(&package_path, &prefix, force);
+
+        extract_package(&package_path, &prefix, force)
+    };
+
+    if total = 0 {
+        warn!("no files to extract from the archive {}: is your package archive empty?", package_filename);
     }
 
     // ? FIXME: reset back to HEAD?
 
-    Ok(true)
+    Ok(extracted != 0)
 }
 
 fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
@@ -291,7 +297,7 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     Ok(())
 }
 
-fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) {
+fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u32, u32) {
     let file = fs::File::open(&path).unwrap();
     let mut archive = zip::ZipArchive::new(file).unwrap();
     let mut num_extracted_files = 0;
@@ -339,6 +345,8 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) {
     }
 
     info!("{} extracted files, {} files total", num_extracted_files, num_files);
+
+    (num_files, num_extracted_files)
 }
 
 fn get_or_init_dot_gpm_dir() -> Result<std::path::PathBuf, io::Error> {
@@ -537,7 +545,7 @@ fn main() {
                 if success {
                     info!("package repositories successfully updated")
                 } else {
-                    error!("package repositories have not been updated")
+                    error!("package repositories have not been updated, check the logs for warnings/errors")
                 }
             },
             Err(e) => error!("could not update repositories: {}", e),
@@ -550,7 +558,7 @@ fn main() {
                 if success {
                     info!("cache successfully cleaned")
                 } else {
-                    error!("cache has not been cleaned")
+                    error!("cache has not been cleaned, check the logs for warnings/errors")
                 }
             },
             Err(e) => error!("could not clean cache: {}", e),
@@ -579,7 +587,11 @@ fn main() {
         }
 
         match install_command(repo, &package, &version, &prefix, force) {
-            Ok(_bool) => info!("package {} successfully installed at version {} in {}", package, version, prefix.display()),
+            Ok(success) => if success {
+                info!("package {} successfully installed at version {} in {}", package, version, prefix.display())
+            } else {
+                error!("package {} was not successfully installed at version {} in {}, check the logs for warnings/errors", package, version, prefix.display())
+            },
             Err(e) => error!("could not install package \"{}\" with version {}: {}", package, version, e),
         }
     }
@@ -601,7 +613,7 @@ fn main() {
                 if success {
                     info!("package {} successfully downloaded at version {}", package, version);
                 } else {
-                    info!("package {} has not been downloaded", package);
+                    error!("package {} has not been downloaded, check the logs for warnings/errors", package);
                 }
             },
             Err(e) => error!("could not download package \"{}\" with version {}: {}", package, version, e),
