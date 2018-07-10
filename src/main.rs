@@ -263,7 +263,7 @@ fn install_command(
         extract_package(&package_path, &prefix, force)
     };
 
-    if total = 0 {
+    if total == 0 {
         warn!("no files to extract from the archive {}: is your package archive empty?", package_filename);
     }
 
