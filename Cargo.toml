@@ -3,6 +3,10 @@ name = "gpm"
 version = "0.1.0"
 authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 
+[profile.release]
+lto = true
+panic = 'abort'
+
 [dependencies.gitlfs]
 path = "./gitlfs"
 
