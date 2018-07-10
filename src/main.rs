@@ -482,6 +482,7 @@ fn main() {
 
     let matches = App::new("gpm")
         .about("Git-based package manager.")
+        .setting(clap::AppSettings::ArgRequiredElseHelp)
         .subcommand(clap::SubCommand::with_name("install")
             .about("Install a package")
             .arg(Arg::with_name("package"))
