@@ -140,7 +140,7 @@ fn download_command(
     let cwd_package_path = env::current_dir().unwrap().join(&package_filename);
 
     if cwd_package_path.exists() && !force {
-        info!("path {} already exist, use --force to override", cwd_package_path.display());
+        error!("path {} already exist, use --force to override", cwd_package_path.display());
         return Ok(false);
     }
 
@@ -306,7 +306,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) {
         num_files += 1;
 
         if outpath.exists() && !force {
-            info!(
+            warn!(
                 "file {} not extracted: path already exist, use --force to override",
                 outpath.as_path().display()
             );
