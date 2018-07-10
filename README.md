@@ -141,7 +141,8 @@ In this case, `gpm` will clone the corresponding Git repository and look for the
 
 ## 5. Logging
 
-By default, `gpm` will echo nothing on stdout.
+By default, `gpm` will echo *nothing* on stdout.
+
 Logs can be enable by setting the `GPM_LOG` environment variable to one of the following values:
 
 * `trace`
@@ -150,11 +151,17 @@ Logs can be enable by setting the `GPM_LOG` environment variable to one of the f
 * `warn`
 * `error`
 
+Example:
+
+```bash
+GPM_LOG=info gpm update
+```
+
 Logs can be *very* verbose. So it's best to keep only the `gpm` and `gitlfs` module logs.
 For example:
 
 ```bash
-export GPM_LOG=gpm=debug,gitlfs=debug
+GPM_LOG="gpm=debug,gitlfs=debug" gpm install hello-world/1.0
 ```
 
 ## 6. Commands

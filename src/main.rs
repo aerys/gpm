@@ -54,7 +54,7 @@ impl fmt::Display for CommandError {
 }
 
 fn clean_command() -> Result<bool, CommandError> {
-    info!("run clean command");
+    info!("running the \"clean\" command");
 
     let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
 
@@ -72,7 +72,7 @@ fn clean_command() -> Result<bool, CommandError> {
 }
 
 fn update_command() -> Result<bool, CommandError> {
-    info!("run update command");
+    info!("running the \"update\" command");
 
     let dot_gpm_dir = get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
@@ -115,7 +115,7 @@ fn download_command(
     version : &String,
     force : bool,
 ) -> Result<bool, CommandError> {
-    info!("run download command for package {} at version {}", package, version);
+    info!("running the \"download\" command for package {} at version {}", package, version);
 
     let repo = match find_or_init_repo(remote, package, version)? {
         Some(repo) => repo,
@@ -220,7 +220,7 @@ fn install_command(
     prefix : &path::Path,
     force : bool,
 ) -> Result<bool, CommandError> {
-    info!("run install command for package {} at version {}", package, version);
+    info!("running the \"install\" command for package {} at version {}", package, version);
 
     // ! FIXME: search in all repos if there is no remote provided
 
