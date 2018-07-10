@@ -60,7 +60,7 @@ Your `hello-world/1.0` package is now stored in your package repository and can 
 
 * Download or build `gpm`.
 * Add your package repository to the `gpm` sources: `mkdir -p ~/.gpm/sources.list && echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list`.
-* Update the `gpm` cache: `gpm update`.u
+* Update the `gpm` cache: `gpm update`.
 * Install your package: `gpm install hello-world/1.0 --prefix ~/`.
 
 Your `hello-world/1.0` package is now installed and you can run it with `sh ~/hello-world.sh`.
