@@ -4,29 +4,68 @@ A statically linked, native, platform agnostic Git-based package manager written
 
 <!-- TOC depthFrom:2 -->
 
-- [1. Build](#1-build)
-    - [1.1. Development build](#11-development-build)
-    - [1.2. Release (static) build](#12-release-static-build)
-- [2. Authentication](#2-authentication)
-- [3. Package reference formatting](#3-package-reference-formatting)
-    - [3.1. Refspec](#31-refspec)
-    - [3.2. URI](#32-uri)
-- [4. Logging](#4-logging)
-- [5. Commands](#5-commands)
-    - [5.1. `update`](#51-update)
-    - [5.2. `clean`](#52-clean)
-    - [5.3. `install`](#53-install)
-    - [5.4. `download`](#54-download)
-- [6. FAQ](#6-faq)
-    - [6.1. Why GPM?](#61-why-gpm)
-    - [6.2. Why Git? Why not just `curl` or `wget` or whatever?](#62-why-git-why-not-just-curl-or-wget-or-whatever)
-    - [6.3. But Git does not like large binary files!](#63-but-git-does-not-like-large-binary-files)
+- [1. Getting started](#1-getting-started)
+    - [1.1. Creating a package repository](#11-creating-a-package-repository)
+    - [1.2. Publishing your first package](#12-publishing-your-first-package)
+    - [1.3. Installing your first package](#13-installing-your-first-package)
+- [2. Build](#2-build)
+    - [2.1. Development build](#21-development-build)
+    - [2.2. Release (static) build](#22-release-static-build)
+- [3. Authentication](#3-authentication)
+- [4. Package reference formatting](#4-package-reference-formatting)
+    - [4.1. Refspec](#41-refspec)
+    - [4.2. URI](#42-uri)
+- [5. Logging](#5-logging)
+- [6. Commands](#6-commands)
+    - [6.1. `update`](#61-update)
+    - [6.2. `clean`](#62-clean)
+    - [6.3. `install`](#63-install)
+    - [6.4. `download`](#64-download)
+- [7. FAQ](#7-faq)
+    - [7.1. Why GPM?](#71-why-gpm)
+    - [7.2. Why Git? Why not just `curl` or `wget` or whatever?](#72-why-git-why-not-just-curl-or-wget-or-whatever)
+    - [7.3. But Git does not like large binary files!](#73-but-git-does-not-like-large-binary-files)
 
 <!-- /TOC -->
 
-## 1. Build
+## 1. Getting started
 
-### 1.1. Development build
+### 1.1. Creating a package repository
+
+* Create a [git-lfs](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
+* Clone this repository on your local computer: ̀`git clone ssh://path.to/my/package-repository.git && cd package-repository`.
+* [Install git-lfs](https://github.com/git-lfs/git-lfs/wiki/Installation).
+* Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.zip` files: `git lfs track "*.zip"`.
+* Add, commit and push `.gitattributes`: `git add .gitattributes && git commit -a -m "Enable git-lfs." && git push`.
+
+Voilà! You're all set to publish your first package!
+
+### 1.2. Publishing your first package
+
+In this example, we're going to create a simple `hello-world` package and publish it.
+
+* Make sure you are at the root of the package repository created in the previous section.
+* Create and enter the package directory: `mkdir hello-world && cd hello-world`.
+* Create the `hello-world.sh` script: `echo "#/bin/sh\necho 'Hello World!'" > hello-world.sh`.
+* Create your package archive: `zip hello-world.zip hello-world.sh`.
+* Add and commit your package archive: `git add hello-world.zip && git commit hello-world.zip -m "Publish hello-world version 1.0"`.
+* Tag your package release with a specific version number: `git tag hello-world/1.0`.
+* Push your new package: `git push --tags`
+
+Your `hello-world/1.0` package is now stored in your package repository and can be installed using `gpm`!
+
+### 1.3. Installing your first package
+
+* Download or build `gpm`.
+* Add your package repository to the `gpm` sources: `mkdir -p ~/.gpm/sources.list && echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list`.
+* Update the `gpm` cache: `gpm update`.u
+* Install your package: `gpm install hello-world/1.0 --prefix ~/`.
+
+Your `hello-world/1.0` package is now installed and you can run it with `sh ~/hello-world.sh`.
+
+## 2. Build
+
+### 2.1. Development build
 
 Dependencies:
 
@@ -37,7 +76,7 @@ Dependencies:
 cargo build
 ```
 
-### 1.2. Release (static) build
+### 2.2. Release (static) build
 
 Dependencies:
 
@@ -52,16 +91,16 @@ docker run \
     cargo build --release --target x86_64-unknown-linux-musl
 ```
 
-## 2. Authentication
+## 3. Authentication
 
 If the repository is "public", then no authentication should be required.
 
 Otherwise, for now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
-## 3. Package reference formatting
+## 4. Package reference formatting
 
-### 3.1. Refspec
+### 4.1. Refspec
 
 A package can be referenced using a Git refspec.
 The best practice is to use a Git tag with the following format:
@@ -82,7 +121,7 @@ For such package reference to be found, you *must* make sure:
 * the repository where that package is stored is listed in `~/.gpm/sources.list`,
 * the cache has been populated by calling `gpm update`.
 
-### 3.2. URI
+### 4.2. URI
 
 A package can also be referenced using a full Git URI formatted like this:
 
@@ -100,7 +139,7 @@ Example:
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
 
-## 4. Logging
+## 5. Logging
 
 By default, `gpm` will echo nothing on stdout.
 Logs can be enable by setting the `GPM_LOG` environment variable to one of the following values:
@@ -118,9 +157,9 @@ For example:
 export GPM_LOG=gpm=debug,gitlfs=debug
 ```
 
-## 5. Commands
+## 6. Commands
 
-### 5.1. `update`
+### 6.1. `update`
 
 Update the cache to feature the latest revision of each repository listed in `~/.gpm/sources.list`.
 
@@ -135,7 +174,7 @@ echo "ssh://github.com/my/other-packages.git" >> ~/.gpm/sources.list
 gpm update
 ```
 
-### 5.2. `clean`
+### 6.2. `clean`
 
 Clean the cache. The cache is located in `~/.gpm/cache`.
 Cache can be rebuilt using the `update` command.
@@ -144,7 +183,7 @@ Cache can be rebuilt using the `update` command.
 gpm clean
 ```
 
-### 5.3. `install`
+### 6.3. `install`
 
 Download and install a package.
 
@@ -163,7 +202,7 @@ gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm install app/2.0 --prefix /var/www/app
 ```
 
-### 5.4. `download`
+### 6.4. `download`
 
 Download a package in the current working directory.
 
@@ -182,9 +221,9 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## 6. FAQ
+## 7. FAQ
 
-### 6.1. Why GPM?
+### 7.1. Why GPM?
 
 GPM means "Git-based Package Manager".
 
@@ -196,7 +235,7 @@ Platforms like GitLab and GitHub are then very handy to manage such package arch
 GPM is also available as an all-in-one static binary.
 It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
-### 6.2. Why Git? Why not just `curl` or `wget` or whatever?
+### 7.2. Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
@@ -206,7 +245,7 @@ For example, Git is also used by the Docker registry to store Docker images.
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
 
-### 6.3. But Git does not like large binary files!
+### 7.3. But Git does not like large binary files!
 
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
