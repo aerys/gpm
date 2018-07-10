@@ -12,19 +12,21 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [2.1. Development build](#21-development-build)
     - [2.2. Release (static) build](#22-release-static-build)
 - [3. Authentication](#3-authentication)
-- [4. Package reference formatting](#4-package-reference-formatting)
-    - [4.1. Refspec](#41-refspec)
-    - [4.2. URI](#42-uri)
-- [5. Logging](#5-logging)
-- [6. Commands](#6-commands)
-    - [6.1. `update`](#61-update)
-    - [6.2. `clean`](#62-clean)
-    - [6.3. `install`](#63-install)
-    - [6.4. `download`](#64-download)
-- [7. FAQ](#7-faq)
-    - [7.1. Why GPM?](#71-why-gpm)
-    - [7.2. Why Git? Why not just `curl` or `wget` or whatever?](#72-why-git-why-not-just-curl-or-wget-or-whatever)
-    - [7.3. But Git does not like large binary files!](#73-but-git-does-not-like-large-binary-files)
+- [5. Package reference formatting](#5-package-reference-formatting)
+    - [5.1. Refspec](#51-refspec)
+    - [5.2. URI](#52-uri)
+- [4. Working with multiple package repositories](#4-working-with-multiple-package-repositories)
+- [6. Logging](#6-logging)
+- [7. Commands](#7-commands)
+    - [7.1. `update`](#71-update)
+    - [7.2. `clean`](#72-clean)
+    - [7.3. `install`](#73-install)
+    - [7.4. `download`](#74-download)
+- [8. FAQ](#8-faq)
+    - [8.1. Why GPM?](#81-why-gpm)
+    - [8.2. Why Git? Why not just `curl` or `wget` or whatever?](#82-why-git-why-not-just-curl-or-wget-or-whatever)
+    - [8.3. But Git does not like large binary files!](#83-but-git-does-not-like-large-binary-files)
+    - [Why storing packages as ZIP archives?](#why-storing-packages-as-zip-archives)
 
 <!-- /TOC -->
 
@@ -98,9 +100,9 @@ If the repository is "public", then no authentication should be required.
 Otherwise, for now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
-## 4. Package reference formatting
+## 5. Package reference formatting
 
-### 4.1. Refspec
+### 5.1. Refspec
 
 A package can be referenced using a Git refspec.
 The best practice is to use a Git tag with the following format:
@@ -118,10 +120,11 @@ In this case, `gpmh` will look for that refspec in all the repositories listed i
 and available in the cache.
 
 For such package reference to be found, you *must* make sure:
-* the repository where that package is stored is listed in `~/.gpm/sources.list`,
-* the cache has been populated by calling `gpm update`.
+* the repository where that package is stored is listed in `~/.gpm/sources.list` (see
+[Working with multiple package repositories](#4-working-with-multiple-package-repositories)),
+* the cache has been updated by calling `gpm update`.
 
-### 4.2. URI
+### 5.2. URI
 
 A package can also be referenced using a full Git URI formatted like this:
 
@@ -139,7 +142,28 @@ Example:
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
 
-## 5. Logging
+## 4. Working with multiple package repositories
+
+Specifying a full package URI might not be practical. It's simpler to specify a package
+refspec and let `gpm` find it. But where should it look for it?
+
+When you specify a package using a refspec, `gpm` will have to find the proper package
+repository. It will look for this refspec in the repositories listed in `~/.gpm/sources.list`.
+
+The following command lines will fill `sources.list` with a few (dummy) package repositories:
+
+```bash
+echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list
+echo "ssh://path.to/my/another-repository.git" >> ~/.gpm/sources.list
+echo "ssh://path.to/my/yet-another-repository.git" >> ~/.gpm/sources.list
+# ...
+```
+
+After updating `sources.list`, don't forget to call `gmp update` to update the cache.
+
+You can then install packages using their refspec.
+
+## 6. Logging
 
 By default, `gpm` will echo *nothing* on stdout.
 
@@ -164,9 +188,9 @@ For example:
 GPM_LOG="gpm=debug,gitlfs=debug" gpm install hello-world/1.0
 ```
 
-## 6. Commands
+## 7. Commands
 
-### 6.1. `update`
+### 7.1. `update`
 
 Update the cache to feature the latest revision of each repository listed in `~/.gpm/sources.list`.
 
@@ -181,7 +205,7 @@ echo "ssh://github.com/my/other-packages.git" >> ~/.gpm/sources.list
 gpm update
 ```
 
-### 6.2. `clean`
+### 7.2. `clean`
 
 Clean the cache. The cache is located in `~/.gpm/cache`.
 Cache can be rebuilt using the `update` command.
@@ -190,7 +214,7 @@ Cache can be rebuilt using the `update` command.
 gpm clean
 ```
 
-### 6.3. `install`
+### 7.3. `install`
 
 Download and install a package.
 
@@ -209,7 +233,7 @@ gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm install app/2.0 --prefix /var/www/app
 ```
 
-### 6.4. `download`
+### 7.4. `download`
 
 Download a package in the current working directory.
 
@@ -228,9 +252,9 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## 7. FAQ
+## 8. FAQ
 
-### 7.1. Why GPM?
+### 8.1. Why GPM?
 
 GPM means "Git-based Package Manager".
 
@@ -242,7 +266,7 @@ Platforms like GitLab and GitHub are then very handy to manage such package arch
 GPM is also available as an all-in-one static binary.
 It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
-### 7.2. Why Git? Why not just `curl` or `wget` or whatever?
+### 8.2. Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
@@ -252,7 +276,7 @@ For example, Git is also used by the Docker registry to store Docker images.
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
 
-### 7.3. But Git does not like large binary files!
+### 8.3. But Git does not like large binary files!
 
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
@@ -260,3 +284,17 @@ You certainly don't want to checkout all the versions of all your packages every
 That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM repositories.
 
 Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
+
+### Why storing packages as ZIP archives?
+
+Vanilla Git will compress objects. But git-lfs doesn't store objects in the actual Git
+repository: they are stored "somewhere else".
+
+To make sure we don't use too much disk space/bandwidth "somewhere else", the
+package archive is stored compressed.
+
+`gpm` is using ZIP because:
+* it's the most common compression algorithms already supported by Rust;
+* tools to create ZIP archives are widely available and easy to use.
+
+`gpm` might support other compression algorithms in the future.
