@@ -87,11 +87,11 @@ fn update_command() -> Result<bool, CommandError> {
     let mut num_repos = 0;
 
     for line in io::BufReader::new(file).lines() {
-        let line = line.unwrap();
+        let line = String::from(line.unwrap().trim());
 
         info!("updating repository {}", line);
 
-        let (repo, _is_new_repo) = get_or_init_repo(&line)?;
+        let (repo, _is_new_repo) = get_or_clone_repo(&line)?;
 
         pull_repo(&repo).map_err(CommandError::Git)?;
 
@@ -166,7 +166,7 @@ fn find_repo_by_refspec(refspec : &String) -> Result<Option<git2::Repository>, C
     let file = fs::File::open(source_file_path)?;
 
     for line in io::BufReader::new(file).lines() {
-        let line = line.unwrap();
+        let line = String::from(line.unwrap().trim());
 
         debug!("searching for refspec {} in repository {}", refspec, line);
 
@@ -196,7 +196,7 @@ fn find_or_init_repo(
 
     match remote {
         Some(remote) => {
-            let (repo, is_new_repo) = get_or_init_repo(&remote)?;
+            let (repo, is_new_repo) = get_or_clone_repo(&remote)?;
 
             if !is_new_repo {
                 pull_repo(&repo).map_err(CommandError::Git)?;
@@ -410,13 +410,21 @@ fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandEr
     Ok(path)
 }
 
-fn get_or_init_repo(remote : &String) -> Result<(git2::Repository, bool), CommandError> {
+fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), CommandError> {
     let path = remote_url_to_cache_path(remote)?;
 
     if path.exists() {
         debug!("use existing repository already in cache {}", path.to_str().unwrap());
         return Ok((git2::Repository::open(path)?, false));
     }
+
+    match path.parent() {
+        Some(parent) => if !parent.exists() {
+            debug!("create missing parent directory {}", parent.display());
+            fs::create_dir_all(parent).map_err(CommandError::IO)?;
+        },
+        None => ()
+    };
 
     let mut callbacks = git2::RemoteCallbacks::new();
     callbacks.credentials(git_credentials_callback);
