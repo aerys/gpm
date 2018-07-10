@@ -323,7 +323,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
 
         if (&*file.name()).ends_with('/') {
             fs::create_dir_all(&outpath).unwrap();
-            info!("file {} extracted to \"{}\"", i, outpath.as_path().display());
+            debug!("file {} extracted to \"{}\"", i, outpath.as_path().display());
         } else {
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
@@ -335,7 +335,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
             
             io::copy(&mut file, &mut outfile).unwrap();
 
-            info!(
+            debug!(
                 "file {} extracted to \"{}\" ({} bytes)",
                 i,
                 outpath.as_path().display(),
