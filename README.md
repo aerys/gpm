@@ -98,6 +98,7 @@ git tag hello-world/1.0
 7. Push your new package:
 
 ```bash
+git push
 git push --tags
 ```
 
