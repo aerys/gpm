@@ -4,8 +4,6 @@ use std::io::prelude::*;
 use std::path;
 use std::env;
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
 
 extern crate clap; 
 use clap::{App, Arg};
@@ -283,11 +281,11 @@ fn install_command(
             },
         ).map_err(CommandError::IO)?;
         
-        extract_package(&tmp_package_path, &prefix, force)
+        extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
     } else {
         warn!("package {} does not use LFS", package);
 
-        extract_package(&package_path, &prefix, force)
+        extract_package(&package_path, &prefix, force).map_err(CommandError::IO)?
     };
 
     if total == 0 {
@@ -325,16 +323,23 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
 }
 
 #[cfg(unix)]
-fn set_file_permissions(file : &mut fs::File, permissions : u32) {
-    file.mode(permissions);
+fn set_file_permissions(file : &mut fs::File, mode : u32) -> Result<(), io::Error> {
+    // use std::os::unix::fs::OpenOptionsExt;
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = file.metadata().unwrap().permissions();
+
+    permissions.set_mode(mode);
+
+    file.set_permissions(permissions)
 }
 
 #[cfg(windows)]
-fn set_file_permissions(_file : &mut fs::File, _permissions : u32) {
-    // nothing
+fn set_file_permissions(_file : &mut fs::File, _permissions : u32) -> Result<(), io::Error> {
+    () // nothing
 }
 
-fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u32, u32) {
+fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Result<(u32, u32), io::Error> {
     let file = fs::File::open(&path).unwrap();
     let mut archive = zip::ZipArchive::new(file).unwrap();
     let mut num_extracted_files = 0;
@@ -364,7 +369,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
             let mut outfile = fs::File::open(&outpath)
                 .expect("directory has not been properly created");
 
-            set_file_permissions(&mut outfile, file.unix_mode().unwrap());
+            set_file_permissions(&mut outfile, file.unix_mode().unwrap())?;
             
             debug!("file {} extracted to \"{}\"", i, outpath.as_path().display());
         } else {
@@ -381,7 +386,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
                 .open(&outpath)
                 .unwrap();
 
-            set_file_permissions(&mut outfile, file.unix_mode().unwrap());
+            set_file_permissions(&mut outfile, file.unix_mode().unwrap())?;
 
             io::copy(&mut file, &mut outfile).unwrap();
 
@@ -396,7 +401,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
 
     info!("{} extracted files, {} files total", num_extracted_files, num_files);
 
-    (num_files, num_extracted_files)
+    Ok((num_files, num_extracted_files))
 }
 
 fn get_or_init_dot_gpm_dir() -> Result<std::path::PathBuf, io::Error> {
