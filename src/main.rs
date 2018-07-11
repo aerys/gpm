@@ -85,28 +85,44 @@ fn update_command() -> Result<bool, CommandError> {
 
     let file = fs::File::open(source_file_path)?;
     let mut num_repos = 0;
+    let mut num_updated = 0;
 
     for line in io::BufReader::new(file).lines() {
         let line = String::from(line.unwrap().trim());
 
-        info!("updating repository {}", line);
-
-        let (repo, _is_new_repo) = get_or_clone_repo(&line)?;
-
-        pull_repo(&repo).map_err(CommandError::Git)?;
-
-        info!("updated repository {}", line);
+        if line == "" {
+            continue;
+        }
 
         num_repos += 1;
+
+        info!("updating repository {}", line);
+
+        match get_or_clone_repo(&line) {
+            Ok((repo, _is_new_repo)) => {
+                match pull_repo(&repo) {
+                    Ok(()) => {
+                        num_updated += 1;
+                        info!("updated repository {}", line);
+                    },
+                    Err(e) => {
+                        warn!("could not update repository: {}", e);
+                    }
+                }
+            },
+            Err(e) => {
+                warn!("could not initialize repository: {}", e);
+            }
+        }
     }
 
-    if num_repos > 1 {
-        info!("updated {} repositories", num_repos);
+    if num_updated > 1 {
+        info!("updated {}/{} repositories", num_updated, num_repos);
     } else {
-        info!("updated {} repository", num_repos);
+        info!("updated {}/{} repository", num_updated, num_repos);
     }
 
-    Ok(true)
+    Ok(num_updated > 0)
 }
 
 fn download_command(
@@ -145,10 +161,10 @@ fn download_command(
     }
 
     if lfs::parse_lfs_link_file(&package_path).is_ok() {
-
         info!("start downloading archive {} from LFS", package_filename);
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
+            Some(refspec),
             &package_path,
             Some(&cwd_package_path),
         ).map_err(CommandError::IO)?;
@@ -252,6 +268,7 @@ fn install_command(
         info!("start downloading archive {} from LFS", package_filename);
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
+            Some(refspec),
             &package_path,
             Some(&tmp_package_path),
         ).map_err(CommandError::IO)?;
