@@ -28,7 +28,6 @@ pub mod lfs {
     use std::path;
     use std::io;
     use std::fs;
-    use std::env;
 
     pub fn parse_lfs_link_file(p : &path::Path) -> Result<Option<(String, String)>, io::Error> {
         debug!("attempting to match {} as an LFS link", p.to_str().unwrap());
@@ -102,7 +101,7 @@ pub mod lfs {
             req.header(Authorization(auth_token.unwrap().to_owned()));
         }
 
-        debug!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
+        trace!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
 
         let mut res = req.send()?;
 
@@ -117,7 +116,7 @@ pub mod lfs {
             warn!("error message: {}", res.text().unwrap());
         }
 
-        debug!("response from LFS server:\n{}", data.pretty(2));
+        trace!("response from LFS server:\n{}", data.pretty(2));
 
         let auth_token = match data["objects"][0]["actions"]["download"]["header"]["Authorization"].as_str() {
             Some(s) => Some(String::from(s)),
@@ -132,13 +131,14 @@ pub mod lfs {
         repository : Url,
         refspec : Option<String>,
         p : &path::Path, 
-        target : Option<&path::Path>) -> Result<bool, io::Error>
+        target : Option<&path::Path>,
+        private_key : Option<String>) -> Result<bool, io::Error>
     {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
             None => return Ok(false),
         };
-        let (auth_token, url) = match get_lfs_auth_token(repository, "download") {
+        let (auth_token, url) = match get_lfs_auth_token(repository, "download", private_key) {
             Ok((t, u)) => (t, u),
             Err(e) => panic!("unable to get LFS batch authorization token: {}", e),
         };
@@ -158,64 +158,67 @@ pub mod lfs {
     }
 
     // https://github.com/git-lfs/git-lfs/blob/master/docs/api/authentication.md
-    pub fn get_lfs_auth_token(repository : Url, op : &str) -> Result<(Option<String>, String), json::Error> {
+    pub fn get_lfs_auth_token(
+        repository : Url,
+        op : &str,
+        private_key : Option<String>) -> Result<(Option<String>, String), json::Error>
+    {
         let host_and_port = format!(
             "{}:{}",
             repository.host_str().unwrap(),
             repository.port().unwrap_or(22)
         );
 
-        debug!("attempting to fetch Git LFS auth token from {}", host_and_port);
-        debug!("connecting to {}", host_and_port);
-        let tcp = TcpStream::connect(host_and_port).unwrap();
-        let mut sess = Session::new().unwrap();
-        
-        debug!("SSH session handshake");
-        sess.handshake(&tcp).unwrap();
-        
-        let ssh_key = match env::var("GPM_SSH_KEY") {
-            Ok(p) => p,
-            Err(e) => panic!("could not retrieve SSH key: {}", e)
-        };
-        let ssh_key_path = path::Path::new(&ssh_key);
+        match private_key {
+            None => {
+                debug!("no SSH private key provided: continue without authentication");
 
-        debug!("SSH public key authentication with key {}", ssh_key);
-        let auth = match sess.userauth_pubkey_file("git", None, ssh_key_path, None) {
-            Ok(()) => {
-                debug!("SSH session authenticated");
-
-                true
+                return Ok((None, guess_lfs_url(repository)));
             },
-            Err(e) => {
-                warn!("failed to authenticate with SSH key: {}", e);
+            Some(ssh_key) => {
+                debug!("attempting to fetch Git LFS auth token from {}", host_and_port);
+                debug!("connecting to {}", host_and_port);
 
-                false
-            }
+                let tcp = TcpStream::connect(host_and_port).unwrap();
+                let mut sess = Session::new().unwrap();
+                
+                debug!("SSH session handshake");
+                sess.handshake(&tcp).unwrap();
+
+                debug!("attempt SSH public key authentication with key {}", ssh_key);
+
+                let ssh_key_path = path::Path::new(&ssh_key);
+                
+                match sess.userauth_pubkey_file("git", None, ssh_key_path, None) {
+                    Ok(()) => {
+                        debug!("SSH session authenticated");
+
+                        let path = &repository.path()[1..];
+                        let command = format!("git-lfs-authenticate {} {}", path, op);
+                        let mut channel = sess.channel_session().unwrap();
+                        
+                        debug!("execute \"{}\" command over SSH", command);
+                        channel.exec(&command).expect("error while running the git-lfs-authenticate command via SSH");
+
+                        let mut s = String::new();
+                        channel.read_to_string(&mut s).unwrap();
+                        channel.wait_close().expect("error while waiting for SSH channel to close");
+
+                        let json = json::parse(&s)?;
+
+                        return Ok((
+                            Some(String::from(json["header"]["Authorization"].as_str().unwrap())),
+                            String::from(json["href"].as_str().unwrap()),
+                        ));                    },
+                    Err(e) => {
+                        warn!("failed to authenticate with SSH key: {}", e);
+                        warn!("continue without authentication");
+
+                        return Ok((None, guess_lfs_url(repository)));
+                    }
+                };
+            },
         };
-
-        if auth {
-            let path = &repository.path()[1..];
-            let command = format!("git-lfs-authenticate {} {}", path, op);
-            let mut channel = sess.channel_session().unwrap();
-            
-            debug!("execute \"{}\" command over SSH", command);
-            channel.exec(&command).expect("error while running the git-lfs-authenticate command via SSH");
-
-            let mut s = String::new();
-            channel.read_to_string(&mut s).unwrap();
-            channel.wait_close().expect("error while waiting for SSH channel to close");
-
-            let json = json::parse(&s)?;
-
-            return Ok((
-                Some(String::from(json["header"]["Authorization"].as_str().unwrap())),
-                String::from(json["href"].as_str().unwrap()),
-            ));
-        } else {
-            warn!("continue without authentication");
-
-            return Ok((None, guess_lfs_url(repository)));
-        }
     }
 
     pub fn download_lfs_object(

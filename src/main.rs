@@ -167,6 +167,10 @@ fn download_command(
             Some(refspec),
             &package_path,
             Some(&cwd_package_path),
+            match env::var("GPM_SSH_KEY") {
+                Ok(k) => Some(k),
+                Err(_) => None,
+            },
         ).map_err(CommandError::IO)?;
     } else {
         fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
@@ -271,6 +275,10 @@ fn install_command(
             Some(refspec),
             &package_path,
             Some(&tmp_package_path),
+            match env::var("GPM_SSH_KEY") {
+                Ok(k) => Some(k),
+                Err(_) => None,
+            },
         ).map_err(CommandError::IO)?;
         
         extract_package(&tmp_package_path, &prefix, force)
