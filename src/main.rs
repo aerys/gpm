@@ -378,6 +378,10 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Re
                     fs::create_dir_all(&p).unwrap();
                 }
             }
+
+            if outpath.exists() {
+                fs::remove_file(&outpath)?;
+            }
            
             let mut outfile = fs::OpenOptions::new()
                 .create(true)
