@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::path;
 use std::env;
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 
 extern crate clap; 
@@ -323,6 +324,16 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn set_file_permissions(file : &mut fs::File, permissions : u32) {
+    file.mode(permissions);
+}
+
+#[cfg(windows)]
+fn set_file_permissions(_file : &mut fs::File, _permissions : u32) {
+    // nothing
+}
+
 fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u32, u32) {
     let file = fs::File::open(&path).unwrap();
     let mut archive = zip::ZipArchive::new(file).unwrap();
@@ -349,6 +360,12 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
 
         if (&*file.name()).ends_with('/') {
             fs::create_dir_all(&outpath).unwrap();
+            
+            let mut outfile = fs::File::open(&outpath)
+                .expect("directory has not been properly created");
+
+            set_file_permissions(&mut outfile, file.unix_mode().unwrap());
+            
             debug!("file {} extracted to \"{}\"", i, outpath.as_path().display());
         } else {
             if let Some(p) = outpath.parent() {
@@ -361,10 +378,11 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
                 .create(true)
                 .write(true)
                 .truncate(true)
-                .mode(file.unix_mode().unwrap())
                 .open(&outpath)
                 .unwrap();
-            
+
+            set_file_permissions(&mut outfile, file.unix_mode().unwrap());
+
             io::copy(&mut file, &mut outfile).unwrap();
 
             debug!(
