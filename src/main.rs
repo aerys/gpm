@@ -5,6 +5,7 @@ use std::path;
 use std::env;
 use std::fs;
 
+#[macro_use]
 extern crate clap; 
 use clap::{App, Arg};
 
@@ -563,6 +564,7 @@ fn main() {
 
     let matches = App::new("gpm")
         .about("Git-based package manager.")
+        .version(crate_version!())
         .setting(clap::AppSettings::ArgRequiredElseHelp)
         .subcommand(clap::SubCommand::with_name("install")
             .about("Install a package")
