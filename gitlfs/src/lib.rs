@@ -118,6 +118,14 @@ pub mod lfs {
 
         trace!("response from LFS server:\n{}", data.pretty(2));
 
+        if !data["objects"][0]["error"].is_empty() {
+            panic!(
+                "could not get LFS download link: {} {}",
+                data["objects"][0]["error"]["code"].as_u32().unwrap(),
+                data["objects"][0]["error"]["message"].as_str().unwrap(),
+            );
+        }
+
         let auth_token = match data["objects"][0]["actions"]["download"]["header"]["Authorization"].as_str() {
             Some(s) => Some(String::from(s)),
             None => None,
