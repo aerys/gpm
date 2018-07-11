@@ -336,7 +336,7 @@ fn set_file_permissions(file : &mut fs::File, mode : u32) -> Result<(), io::Erro
 
 #[cfg(windows)]
 fn set_file_permissions(_file : &mut fs::File, _permissions : u32) -> Result<(), io::Error> {
-    () // nothing
+    Ok(()) // nothing
 }
 
 fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Result<(u32, u32), io::Error> {
