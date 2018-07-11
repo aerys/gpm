@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::path;
 use std::env;
 use std::fs;
+use std::os::unix::fs::OpenOptionsExt;
 
 extern crate clap; 
 use clap::{App, Arg};
@@ -356,7 +357,13 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> (u
                 }
             }
            
-            let mut outfile = fs::File::create(&outpath).unwrap();
+            let mut outfile = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .mode(file.unix_mode().unwrap())
+                .open(&outpath)
+                .unwrap();
             
             io::copy(&mut file, &mut outfile).unwrap();
 
