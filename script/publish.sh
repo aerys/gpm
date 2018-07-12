@@ -34,11 +34,11 @@ VERSION=`grep -Po '(?<=version = ")[0-9\.]+' Cargo.toml`
 
 git clone https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/aerys/gpm-packages.git
 mkdir -p gpm-packages/gpm-linux64
-zip gpm.zip gpm
-cp gpm.zip gpm-packages/gpm-linux64
+zip gpm-linux64.zip gpm
+cp gpm-linux64.zip gpm-packages/gpm-linux64
 cd gpm-packages/gpm-linux64
-git add gpm.zip
-git commit gpm.zip -m "Publish gpm-linux64 version ${VERSION}."
+git add gpm-linux64.zip
+git commit gpm-linux64.zip -m "Publish gpm-linux64 version ${VERSION}."
 git tag gpm-linux64/${VERSION}
 git push
 git push --tags
