@@ -1,5 +1,8 @@
 # GPM
 
+[![Build status](https://travis-ci.org/aerys/gpm.svg?branch=master)](https://travis-ci.org/aerys/gpm)
+[![Build status](https://ci.appveyor.com/api/projects/status/rxgs74va4o640vaa?svg=true)](https://ci.appveyor.com/project/promethe42/gpm)
+
 A statically linked, native, platform agnostic Git-based package manager written in Rust.
 
 <!-- TOC depthFrom:2 -->
