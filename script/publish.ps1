@@ -12,7 +12,7 @@ $version = $env:APPVEYOR_REPO_TAG_NAME
 $github_username = $env:GITHUB_USERNAME
 $github_token = $env:GITHUB_TOKEN
 
-git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git" 2>&1 | Write-Host
+& { $env:GIT_LFS_SKIP_SMUDGE=1; git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git" 2>&1 | Write-Host }
 mkdir -Force -p gpm-packages/gpm-windows64
 Compress-Archive -Force -Path .\target\release\gpm.exe -DestinationPath .\gpm-packages\gpm-windows64\gpm-windows64.zip
 cd gpm-packages/gpm-windows64

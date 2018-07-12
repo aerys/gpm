@@ -32,7 +32,7 @@ fi
 
 VERSION=`grep -Po '(?<=version = ")[0-9\.]+' Cargo.toml`
 
-git clone https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/aerys/gpm-packages.git
+GIT_LFS_SKIP_SMUDGE=1 git clone https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/aerys/gpm-packages.git
 mkdir -p gpm-packages/gpm-linux64
 zip gpm-linux64.zip gpm
 cp gpm-linux64.zip gpm-packages/gpm-linux64
