@@ -22,6 +22,5 @@ git config --global user.name "AppVeyor" 2>&1 | Write-Host
 git add gpm-windows64.zip 2>&1 | Write-Host
 git commit gpm-windows64.zip -m "Publish gpm-windows64 version ${version}." 2>&1 | Write-Host
 git tag gpm-windows64/${version} 2>&1 | Write-Host
-# git push
-# git push --tags
-git status 2>&1 | Write-Host
+git push 2>&1 | Write-Host
+git push --tags 2>&1 | Write-Host
