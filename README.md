@@ -61,7 +61,7 @@ git lfs track "*.zip"
 
 ```bash
 git add .gitattributes
-git commit -a -m "Enable git-lfs."
+git commit .gitattributes -m "Enable git-lfs."
 git push
 ```
 
