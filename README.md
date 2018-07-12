@@ -12,21 +12,29 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [2.1. Development build](#21-development-build)
     - [2.2. Release (static) build](#22-release-static-build)
 - [3. Authentication](#3-authentication)
-- [5. Package reference formatting](#5-package-reference-formatting)
-    - [5.1. Refspec](#51-refspec)
-    - [5.2. URI](#52-uri)
-- [4. Working with multiple package repositories](#4-working-with-multiple-package-repositories)
-- [6. Logging](#6-logging)
-- [7. Commands](#7-commands)
-    - [7.1. `update`](#71-update)
-    - [7.2. `clean`](#72-clean)
-    - [7.3. `install`](#73-install)
-    - [7.4. `download`](#74-download)
-- [8. FAQ](#8-faq)
-    - [8.1. Why GPM?](#81-why-gpm)
-    - [8.2. Why Git? Why not just `curl` or `wget` or whatever?](#82-why-git-why-not-just-curl-or-wget-or-whatever)
-    - [8.3. But Git does not like large binary files!](#83-but-git-does-not-like-large-binary-files)
-    - [Why storing packages as ZIP archives?](#why-storing-packages-as-zip-archives)
+- [4. Best practices](#4-best-practices)
+    - [4.1. Publishing a package](#41-publishing-a-package)
+    - [4.2. Installing a package at a specific version](#42-installing-a-package-at-a-specific-version)
+    - [4.3. Upgrading to/installing the latest revision](#43-upgrading-toinstalling-the-latest-revision)
+- [5. Package reference notations](#5-package-reference-notations)
+    - [5.1. `${package}=${revision}` notation](#51-packagerevision-notation)
+    - [5.2. Shorthand notations](#52-shorthand-notations)
+        - [5.2.1. Implicit package name in revision (recommended)](#521-implicit-package-name-in-revision-recommended)
+        - [5.2.2. Latest revision notation](#522-latest-revision-notation)
+    - [5.3. URI notation](#53-uri-notation)
+- [6. Matching package references](#6-matching-package-references)
+- [7. Working with multiple package repositories](#7-working-with-multiple-package-repositories)
+- [8. Logging](#8-logging)
+- [9. Commands](#9-commands)
+    - [9.1. `update`](#91-update)
+    - [9.2. `clean`](#92-clean)
+    - [9.3. `install`](#93-install)
+    - [9.4. `download`](#94-download)
+- [10. FAQ](#10-faq)
+    - [10.1. Why GPM?](#101-why-gpm)
+    - [10.2. Why Git? Why not just `curl` or `wget` or whatever?](#102-why-git-why-not-just-curl-or-wget-or-whatever)
+    - [10.3. But Git does not like large binary files!](#103-but-git-does-not-like-large-binary-files)
+    - [10.4. Why storing packages as ZIP archives?](#104-why-storing-packages-as-zip-archives)
 
 <!-- /TOC -->
 
@@ -163,49 +171,103 @@ If the repository is "public", then no authentication should be required.
 Otherwise, for now, only authentication through a passphrase-less SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
-## 5. Package reference formatting
+## 4. Best practices
 
-### 5.1. Refspec
+### 4.1. Publishing a package
 
-A package can be referenced using a Git refspec.
-The best practice is to use a Git tag with the following format:
+Commit the new package revision and tag it with the tag `${package}/${version}`, where `${package}`is the name of your package and `${version}` the [semver](https://semver.org/) version of the package.
 
-`${name}/${version}`
+### 4.2. Installing a package at a specific version
+
+Use the `${package}/${version}` shorthand notation (aka "implicit package name in revision").
+
+Example:
+
+```bash
+gpm install my-package/2.1.0
+```
+
+### 4.3. Upgrading to/installing the latest revision
+
+Use the `${package}` shorthand notation (aka "latest revision notation"). 
+
+Example:
+
+```bash
+gpm install my-package
+```
+
+## 5. Package reference notations
+
+### 5.1. `${package}=${revision}` notation
+
+A package can be referenced using the following notation:
+
+`${package}=${revision}`
 
 where:
 
-* `name` is the name of the package,
-* `version` is the version of the package.
+* `package` is the name of the package (ex: `my-package`),
+* `revision` is a valid Git refspec at which the package archive can be found (ex: `refs/heads/master`, `master`, `my-tag`).
 
-Example: `my-package/2.0`
-
-In this case, `gpmh` will look for that refspec in all the repositories listed in `~/.gpm/sources.list`
-and available in the cache.
+Example: if you have tagged a release of `my-package` with the tag `my-package/2.0`, use the reference `my-package=my-package/2.0`.
 
 For such package reference to be found, you *must* make sure:
-* the repository where that package is stored is listed in `~/.gpm/sources.list` (see
-[Working with multiple package repositories](#4-working-with-multiple-package-repositories)),
+* the corresponding package repository remote is listed in `~/.gpm/sources.list` (see
+[Working with multiple package repositories](#7-working-with-multiple-package-repositories)),
 * the cache has been updated by calling `gpm update`.
 
-### 5.2. URI
+### 5.2. Shorthand notations
+
+#### 5.2.1. Implicit package name in revision (recommended)
+
+If therere is no package name explicitely provided and the revision contains a `/`, then the package name is deduced from the part before the `/`.
+
+For example, the package reference `my-package/2.0` will be interpreted as `my-package=my-package/2.0`.
+
+#### 5.2.2. Latest revision notation
+
+If the package reference is not an URI and contains neither `/` nor `=`, then `gpm` assumes:
+* the package reference is the package name;
+* the package refspec is "master".
+
+Thus, the package reference `my-package` will be interpreted as `my-package=refs/heads/master`.
+
+This notation is handy to install the latest revision of a package.
+
+### 5.3. URI notation
 
 A package can also be referenced using a full Git URI formatted like this:
 
-`${remote-uri}#${refspec}`
+`${remote-uri}#${package}`
 
 where:
 
 * `remote-uri` is the full URI to the Git remote,
-* `refspec` is the refspec for the package (usually a Git tag).
+* `package` is a shorthand or `${name}=${revision}` package reference.
 
 Example:
 
-`ssh://github.com/my/awesome-packages.git#app/2.0`
+`ssh://github.com/my/awesome-packages.git#my-package/2.0`
 
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
 
-## 4. Working with multiple package repositories
+## 6. Matching package references
+
+The following section explains how `gpm` finds the package archive for a package named `${name}` at revision `${revision}`.
+
+For each available remote:
+1. Try to find the refspec matching `${revision}`:
+    * If `${revision}` is a valid refspec and can be found, then it will be used directly.
+    * Otherwise, if `refs/tags/${revision}` can be found, it will be used.
+    * Otherwise, if `refs/heads/${revision}` can be found it will be used.
+    * Otherwise, skip to the next remote.
+2. If a valid refspec has been found, reset the repositories to this refspec. Throw an error otherwise.
+3. If the `${name}/${name}.zip` exists at this refspec, use it. Throw an error otherwise.
+4. If `${name}/${name}.zip` is a git-lfs link, resolve it. Otherwise, use `${name}/${name}.zip` directly.
+
+## 7. Working with multiple package repositories
 
 Specifying a full package URI might not be practical. It's simpler to specify a package
 refspec and let `gpm` find it. But where should it look for it?
@@ -226,7 +288,7 @@ After updating `sources.list`, don't forget to call `gmp update` to update the c
 
 You can then install packages using their refspec.
 
-## 6. Logging
+## 8. Logging
 
 By default, `gpm` will echo *nothing* on stdout.
 
@@ -251,9 +313,9 @@ For example:
 GPM_LOG="gpm=debug,gitlfs=debug" gpm install hello-world/1.0
 ```
 
-## 7. Commands
+## 9. Commands
 
-### 7.1. `update`
+### 9.1. `update`
 
 Update the cache to feature the latest revision of each repository listed in `~/.gpm/sources.list`.
 
@@ -268,7 +330,7 @@ echo "ssh://github.com/my/other-packages.git" >> ~/.gpm/sources.list
 gpm update
 ```
 
-### 7.2. `clean`
+### 9.2. `clean`
 
 Clean the cache. The cache is located in `~/.gpm/cache`.
 Cache can be rebuilt using the `update` command.
@@ -277,7 +339,7 @@ Cache can be rebuilt using the `update` command.
 gpm clean
 ```
 
-### 7.3. `install`
+### 9.3. `install`
 
 Download and install a package.
 
@@ -296,7 +358,7 @@ gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm install app/2.0 --prefix /var/www/app
 ```
 
-### 7.4. `download`
+### 9.4. `download`
 
 Download a package in the current working directory.
 
@@ -315,9 +377,9 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## 8. FAQ
+## 10. FAQ
 
-### 8.1. Why GPM?
+### 10.1. Why GPM?
 
 GPM means "Git-based Package Manager".
 
@@ -329,7 +391,7 @@ Platforms like GitLab and GitHub are then very handy to manage such package arch
 GPM is also available as an all-in-one static binary.
 It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
-### 8.2. Why Git? Why not just `curl` or `wget` or whatever?
+### 10.2. Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
@@ -339,7 +401,7 @@ For example, Git is also used by the Docker registry to store Docker images.
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
 
-### 8.3. But Git does not like large binary files!
+### 10.3. But Git does not like large binary files!
 
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
@@ -348,7 +410,7 @@ That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM re
 
 Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
 
-### Why storing packages as ZIP archives?
+### 10.4. Why storing packages as ZIP archives?
 
 Vanilla Git will compress objects. But git-lfs doesn't store objects in the actual Git
 repository: they are stored "somewhere else".

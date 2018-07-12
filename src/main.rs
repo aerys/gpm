@@ -129,25 +129,25 @@ fn update_command() -> Result<bool, CommandError> {
 fn download_command(
     remote : Option<String>,
     package : &String,
-    version : &String,
+    revision : &String,
     force : bool,
 ) -> Result<bool, CommandError> {
-    info!("running the \"download\" command for package {} at version {}", package, version);
+    info!("running the \"download\" command for package {} at revision {}", package, revision);
 
-    let repo = match find_or_init_repo(remote, package, version)? {
+    let (repo, refspec) = match find_or_init_repo(remote, package, revision)? {
         Some(repo) => repo,
-        None => panic!("package was not found in any repository"),
+        None => panic!("package/revision was not found in any repository"),
     };
+
     let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
-    info!("package found in repository {}", remote);
+    info!("revision {} found as refspec {} in repository {}", &revision, &refspec, remote);
 
-    let refspec = format!("refs/tags/{}/{}", package, version);
     let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
     let mut builder = git2::build::CheckoutBuilder::new();
     builder.force();
 
-    debug!("move repository HEAD to tag {}/{}", package, version);
+    debug!("move repository HEAD to {}", revision);
     repo.set_head_detached(oid).map_err(CommandError::Git)?;
     repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
@@ -181,7 +181,10 @@ fn download_command(
 
     Ok(true)
 }
-fn find_repo_by_refspec(refspec : &String) -> Result<Option<git2::Repository>, CommandError> {
+fn find_repo_by_package_and_revision(
+    package : &String,
+    revision : &String,
+) -> Result<Option<(git2::Repository, String)>, CommandError> {
     let dot_gpm_dir = get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
     let file = fs::File::open(source_file_path)?;
@@ -189,7 +192,7 @@ fn find_repo_by_refspec(refspec : &String) -> Result<Option<git2::Repository>, C
     for line in io::BufReader::new(file).lines() {
         let line = String::from(line.unwrap().trim());
 
-        debug!("searching for refspec {} in repository {}", refspec, line);
+        debug!("searching for revision {} in repository {}", revision, line);
 
         let path = remote_url_to_cache_path(&line)?;
         let repo = git2::Repository::open(path).map_err(CommandError::Git)?;
@@ -199,21 +202,66 @@ fn find_repo_by_refspec(refspec : &String) -> Result<Option<git2::Repository>, C
         repo.set_head("refs/heads/master")?;
         repo.checkout_head(Some(&mut builder))?;
 
-        let oid = repo.refname_to_id(&refspec);
+        match revision_to_refspec(&repo, &revision) {
+            Some(refspec) => {
+                debug!("revision {} found with refspec {}", revision, refspec);
 
-        if oid.is_ok() {
-            return Ok(Some(repo));
-        }
+                let mut builder = git2::build::CheckoutBuilder::new();
+                builder.force();
+                repo.set_head(&refspec)?;
+                repo.checkout_head(Some(&mut builder))?;
+
+                if package_archive_is_in_repo(&repo, package) {
+                    debug!("package archive {}.zip found in refspec {}", package, &refspec);
+                    return Ok(Some((repo, refspec)));
+                } else {
+                    debug!("package archive {}.zip cound not be found in refspec {}, skipping to next repository", package, &refspec);
+                    continue;
+                }
+            },
+            None => {
+                debug!("revision not found, skipping to next repository");
+                continue;
+            }
+        };
     }
 
     Ok(None)
 }
 
+fn package_archive_is_in_repo(repo : &git2::Repository, package : &String) -> bool {
+    let archive_filename = format!("{}.zip", &package);
+    let mut path = repo.workdir().unwrap().to_owned();
+
+    path.push(package);
+    path.push(archive_filename);
+
+    return path.exists();
+}
+
+fn revision_to_refspec(repo : &git2::Repository, revision : &String) -> Option<String> {
+    if repo.refname_to_id(&revision).is_ok() {
+            return Some(revision.to_owned());
+    }
+
+    let tag_refspec = format!("refs/tags/{}", &revision);
+    if repo.refname_to_id(&tag_refspec).is_ok() {
+        return Some(tag_refspec);
+    }
+
+    let branch_refspec = format!("refs/heads/{}", &revision);
+    if repo.refname_to_id(&branch_refspec).is_ok() {
+        return Some(branch_refspec);
+    }
+
+    return None;
+}
+
 fn find_or_init_repo(
     remote : Option<String>,
-    package : &String,
-    version : &String
-) -> Result<Option<git2::Repository>, CommandError> {
+    package: &String,
+    revision : &String,
+) -> Result<Option<(git2::Repository, String)>, CommandError> {
 
     match remote {
         Some(remote) => {
@@ -223,13 +271,17 @@ fn find_or_init_repo(
                 pull_repo(&repo).map_err(CommandError::Git)?;
             }
 
-            Ok(Some(repo))
+            match revision_to_refspec(&repo, revision) {
+                Some(refspec) => Ok(Some((repo, refspec))),
+                // We could not find the revision in the specified remote.
+                // So we make the repo throw an error on purpose:
+                None => Err(CommandError::Git(repo.refname_to_id(revision).err().unwrap()))
+            }
         },
         None => {
-            let refspec = format!("refs/tags/{}/{}", package, version);
-        
-            debug!("no specific remote provided: searching for refspec {}", refspec);
-            find_repo_by_refspec(&refspec)
+            debug!("no specific remote provided: searching for package {} at revision {}", package, revision);
+
+            find_repo_by_package_and_revision(package, revision)
         },
     }
 }
@@ -237,28 +289,27 @@ fn find_or_init_repo(
 fn install_command(
     remote : Option<String>,
     package : &String,
-    version : &String,
+    revision : &String,
     prefix : &path::Path,
     force : bool,
 ) -> Result<bool, CommandError> {
-    info!("running the \"install\" command for package {} at version {}", package, version);
+    info!("running the \"install\" command for package {} at revision {}", package, revision);
 
     // ! FIXME: search in all repos if there is no remote provided
 
-    let repo = match find_or_init_repo(remote, package, version)? {
+    let (repo, refspec) = match find_or_init_repo(remote, package, revision)? {
         Some(repo) => repo,
-        None => panic!("package was not found in any repository"),
+        None => panic!("package/revision was not found in any repository"),
     };
     let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
-    info!("package found in repository {}", remote);
+    info!("revision {} found as refspec {} in repository {}", &revision, &refspec, remote);
 
-    let refspec = format!("refs/tags/{}/{}", package, version);
     let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
     let mut builder = git2::build::CheckoutBuilder::new();
     builder.force();
 
-    debug!("move repository HEAD to tag {}/{}", package, version);
+    debug!("move repository HEAD to {}", &refspec);
     repo.set_head_detached(oid).map_err(CommandError::Git)?;
     repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
@@ -341,7 +392,9 @@ fn set_file_permissions(_file : &mut fs::File, _permissions : u32) -> Result<(),
 }
 
 fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Result<(u32, u32), io::Error> {
-    let file = fs::File::open(&path).unwrap();
+    debug!("attempting to extract package archive {} in {}", path.display(), prefix.display());
+
+    let file = fs::File::open(&path)?;
     let mut archive = zip::ZipArchive::new(file).unwrap();
     let mut num_extracted_files = 0;
     let mut num_files = 0;
@@ -535,7 +588,7 @@ fn parse_package_uri(url_or_refspec : &String) -> Result<(Option<String>, String
 
     if url.is_ok() {
         let url : Url = url.unwrap();
-        let package_and_version : Vec<&str> = url.fragment().unwrap().split("/").collect();
+        let package_and_revision : Vec<&str> = url.fragment().unwrap().split("/").collect();
         let repository = format!(
             "{}://{}{}",
             url.scheme(),
@@ -545,18 +598,32 @@ fn parse_package_uri(url_or_refspec : &String) -> Result<(Option<String>, String
 
         return Ok((
             Some(repository),
-            String::from(package_and_version[0]),
-            String::from(package_and_version[1])
+            String::from(package_and_revision[0]),
+            String::from(package_and_revision[1])
         ));
     }
 
-    let parts : Vec<&str> = url_or_refspec.split("/").collect();
+    if url_or_refspec.contains("=") {
+        let parts : Vec<&str> = url_or_refspec.split("=").collect();
 
-    Ok((
-        None,
-        parts[0].to_string(),
-        parts[1].to_string(),
-    ))
+        return Ok((
+            None,
+            parts[0].to_string(),
+            parts[1].to_string(),
+        ))
+    }
+
+    if url_or_refspec.contains("/") {
+        let parts : Vec<&str> = url_or_refspec.split("/").collect();
+
+        return Ok((
+            None,
+            parts[0].to_string(),
+            url_or_refspec.to_owned(),
+        ));
+    }
+
+    Ok((None, url_or_refspec.to_owned(), String::from("refs/heads/master")))
 }
 
 fn main() {
@@ -638,46 +705,46 @@ fn main() {
         }
 
         let package = String::from(matches.value_of("package").unwrap());
-        let (repo, package, version) = parse_package_uri(&package)
+        let (repo, package, revision) = parse_package_uri(&package)
             .expect("unable to parse package URI");
 
         if repo.is_some() {
-            debug!("parsed package URI: repo = {}, package = {}, version = {}", repo.to_owned().unwrap(), package, version);
+            debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
         } else {
-            debug!("parsed package: package = {}, version = {}", package, version);
+            debug!("parsed package: name = {}, revision = {}", package, revision);
         }
 
-        match install_command(repo, &package, &version, &prefix, force) {
+        match install_command(repo, &package, &revision, &prefix, force) {
             Ok(success) => if success {
-                info!("package {} successfully installed at version {} in {}", package, version, prefix.display())
+                info!("package {} successfully installed at revision {} in {}", package, revision, prefix.display())
             } else {
-                error!("package {} was not successfully installed at version {} in {}, check the logs for warnings/errors", package, version, prefix.display())
+                error!("package {} was not successfully installed at revision {} in {}, check the logs for warnings/errors", package, revision, prefix.display())
             },
-            Err(e) => error!("could not install package \"{}\" with version {}: {}", package, version, e),
+            Err(e) => error!("could not install package \"{}\" at revision {}: {}", package, revision, e),
         }
     }
 
     if let Some(matches) = matches.subcommand_matches("download") {
         let force = matches.is_present("force");
         let package = String::from(matches.value_of("package").unwrap());
-        let (repo, package, version) = parse_package_uri(&package)
+        let (repo, package, revision) = parse_package_uri(&package)
             .expect("unable to parse package URI");
 
         if repo.is_some() {
-            debug!("parsed package URI: repo = {}, package = {}, version = {}", repo.to_owned().unwrap(), package, version);
+            debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
         } else {
-            debug!("parsed package: package = {}, version = {}", package, version);
+            debug!("parsed package: name = {}, revision = {}", package, revision);
         }
 
-        match download_command(repo, &package, &version, force) {
+        match download_command(repo, &package, &revision, force) {
             Ok(success) => {
                 if success {
-                    info!("package {} successfully downloaded at version {}", package, version);
+                    info!("package {} successfully downloaded at revision {}", package, revision);
                 } else {
                     error!("package {} has not been downloaded, check the logs for warnings/errors", package);
                 }
             },
-            Err(e) => error!("could not download package \"{}\" with version {}: {}", package, version, e),
+            Err(e) => error!("could not download package \"{}\" at revision {}: {}", package, revision, e),
         }
     }
 }
