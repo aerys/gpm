@@ -13,13 +13,13 @@ if ($env:target -ne "x86_64-pc-windows-msvc") {
     exit 0
 }
 
-git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git"
+git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git" 2>&1 | Write-Host
 mkdir -p gpm-packages/gpm-windows64
 Compress-Archive -Path .\target\release\gpm.exe -DestinationPath .\gpm-packages\gpm-windows64\gpm-windows64.zip
 cd gpm-packages/gpm-windows64
-git add gpm-windows64.zip
-git commit gpm-windows64.zip -m "Publish gpm-windows64 version ${version}."
-git tag gpm-windows64/${version}
+git add gpm-windows64.zip 2>&1 | Write-Host
+git commit gpm-windows64.zip -m "Publish gpm-windows64 version ${version}." 2>&1 | Write-Host
+git tag gpm-windows64/${version} 2>&1 | Write-Host
 # git push
 # git push --tags
-git status
+git status 2>&1 | Write-Host
