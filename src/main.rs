@@ -423,7 +423,10 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Re
             let mut outfile = fs::File::open(&outpath)
                 .expect("directory has not been properly created");
 
-            set_file_permissions(&mut outfile, file.unix_mode().unwrap())?;
+            match file.unix_mode() {
+                Some(mode) => set_file_permissions(&mut outfile, mode)?,
+                None => (),
+            };
             
             debug!("file {} extracted to \"{}\"", i, outpath.as_path().display());
         } else {
@@ -444,7 +447,10 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Re
                 .open(&outpath)
                 .unwrap();
 
-            set_file_permissions(&mut outfile, file.unix_mode().unwrap())?;
+            match file.unix_mode() {
+                Some(mode) => set_file_permissions(&mut outfile, mode)?,
+                None => (),
+            };
 
             io::copy(&mut file, &mut outfile).unwrap();
 
