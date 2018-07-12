@@ -1,15 +1,14 @@
-# if (-Not $env:APPVEYOR_REPO_TAG) {
-#     Write-Host "Not a tag: skip publishing."
-#     exit 0    
-# }
+if (-Not $env:APPVEYOR_REPO_TAG) {
+    Write-Host "Not a tag: skip publishing."
+    exit 0    
+}
 
 if ($env:target -ne "x86_64-pc-windows-msvc") {
     Write-Host "Target $env:target detected: skip publishing."
     exit 0
 }
 
-# $version = $env:APPVEYOR_REPO_TAG_NAME
-$version = "0.4.3"
+$version = $env:APPVEYOR_REPO_TAG_NAME
 $github_username = $env:GITHUB_USERNAME
 $github_token = $env:GITHUB_TOKEN
 
