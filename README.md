@@ -15,7 +15,7 @@ A statically linked, native, platform agnostic Git-based package manager written
 - [4. Best practices](#4-best-practices)
     - [4.1. Publishing a package](#41-publishing-a-package)
     - [4.2. Installing a package at a specific version](#42-installing-a-package-at-a-specific-version)
-    - [4.3. Upgrading to/installing the latest revision](#43-upgrading-toinstalling-the-latest-revision)
+    - [4.3. Upgrading to/installing the latest revision of a package](#43-upgrading-toinstalling-the-latest-revision-of-a-package)
 - [5. Package reference notations](#5-package-reference-notations)
     - [5.1. `${package}=${revision}` notation](#51-packagerevision-notation)
     - [5.2. Shorthand notations](#52-shorthand-notations)
@@ -187,7 +187,7 @@ Example:
 gpm install my-package/2.1.0
 ```
 
-### 4.3. Upgrading to/installing the latest revision
+### 4.3. Upgrading to/installing the latest revision of a package
 
 Use the `${package}` shorthand notation (aka "latest revision notation"). 
 
