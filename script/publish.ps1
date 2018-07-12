@@ -17,6 +17,8 @@ git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packa
 mkdir -p gpm-packages/gpm-windows64
 Compress-Archive -Path .\target\release\gpm.exe -DestinationPath .\gpm-packages\gpm-windows64\gpm-windows64.zip
 cd gpm-packages/gpm-windows64
+git config --global user.email "noreply@appveyor.com" 2>&1 | Write-Host
+git config --global user.name "AppVeyor" 2>&1 | Write-Host
 git add gpm-windows64.zip 2>&1 | Write-Host
 git commit gpm-windows64.zip -m "Publish gpm-windows64 version ${version}." 2>&1 | Write-Host
 git tag gpm-windows64/${version} 2>&1 | Write-Host
