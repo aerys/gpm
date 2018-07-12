@@ -1,0 +1,19 @@
+language: C
+
+sudo: required
+
+os:
+  - linux
+
+services:
+  - docker
+
+script:
+  - ./script/build-release.sh gpm
+  
+deploy:
+  skip_cleanup: true
+  on:
+    tags: true
+  provider: script
+  script: bash script/publish.sh

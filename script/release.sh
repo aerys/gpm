@@ -1,12 +1,12 @@
 #!/bin/bash
 
 if ! [ -x "$(command -v git)" ]; then
-  echo 'Error: git is not installed.' >&2
+  echo "error: git is not installed" >&2
   exit 1
 fi
 
 if ! [ -x "$(command -v cargo)" ]; then
-  echo 'Error: cargo is not installed.' >&2
+  echo "error: cargo is not installed" >&2
   exit 1
 fi
 
