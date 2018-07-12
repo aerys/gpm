@@ -1,4 +1,10 @@
-$version = $env:APPVEYOR_REPO_TAG_NAME
+# if ($env:APPVEYOR_REPO_TAG) {
+#     Write-Host "Not a tag: skip publishing."
+#     exit 0    
+# }
+
+# $version = $env:APPVEYOR_REPO_TAG_NAME
+$version = "0.4.2"
 $github_username = $env:GITHUB_USERNAME
 $github_token = $env:GITHUB_TOKEN
 
@@ -14,5 +20,6 @@ cd gpm-packages/gpm-windows64
 git add gpm-windows64.zip
 git commit gpm-windows64.zip -m "Publish gpm-windows64 version $version."
 git tag gpm-windows64/$version
-git push
-git push --tags
+# git push
+# git push --tags
+git status
