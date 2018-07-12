@@ -115,3 +115,7 @@ install:
 # environment variable.
 build_script:
   - cargo build --release --verbose %cargoflags%
+
+
+deploy_script:
+  - ps: .\script\publish.ps1
