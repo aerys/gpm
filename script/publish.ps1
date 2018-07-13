@@ -14,7 +14,8 @@ $github_token = $env:GITHUB_TOKEN
 
 & { $env:GIT_LFS_SKIP_SMUDGE=1; git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git" 2>&1 | Write-Host }
 mkdir -Force -p gpm-packages/gpm-windows64
-7za.exe a -ttar -so archive.tar .\target\release\gpm.exe | 7za.exe a -si .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
+7z a -ttar -so archive.tar .\target\release\gpm.exe | 7z a -si .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
+cd gpm-packages/gpm-windows64
 git config --global user.email "noreply@ci.appveyor.com" 2>&1 | Write-Host
 git config --global user.name "AppVeyor" 2>&1 | Write-Host
 git add gpm-windows64.tar.gz 2>&1 | Write-Host
