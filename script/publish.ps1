@@ -19,7 +19,7 @@ Remove-Item gpm-packages/gpm-windows64 -Force -Recurse -ErrorAction SilentlyCont
 mkdir -Force -p gpm-packages/gpm-windows64
 7z a -ttar .\gpm-packages\gpm-windows64\gpm-windows64.tar .\target\release\gpm.exe
 appveyor PushArtifact .\gpm-packages\gpm-windows64\gpm-windows64.tar
-7z a -tgzip .\gpm-packages\gpm-windows64\gpm-windows64.tar .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
+7z a -tgzip .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz .\gpm-packages\gpm-windows64\gpm-windows64.tar
 appveyor PushArtifact .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
 cd gpm-packages/gpm-windows64
 git config --global user.email "noreply@ci.appveyor.com" 2>&1 | Write-Host
