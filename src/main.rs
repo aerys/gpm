@@ -22,10 +22,14 @@ use gitlfs::lfs;
 extern crate url;
 use url::{Url};
 
-extern crate zip;
+extern crate tar;
+use tar::Archive;
 
 extern crate tempfile;
 use tempfile::tempdir;
+
+extern crate libflate;
+use libflate::gzip::Decoder;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -152,7 +156,7 @@ fn download_command(
     repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
     let workdir = repo.workdir().unwrap();
-    let package_filename = format!("{}.zip", package);
+    let package_filename = format!("{}.tar.gz", package);
     let package_path = workdir.join(package).join(&package_filename);
     let cwd_package_path = env::current_dir().unwrap().join(&package_filename);
 
@@ -212,10 +216,10 @@ fn find_repo_by_package_and_revision(
                 repo.checkout_head(Some(&mut builder))?;
 
                 if package_archive_is_in_repo(&repo, package) {
-                    debug!("package archive {}.zip found in refspec {}", package, &refspec);
+                    debug!("package archive {}.tar.gz found in refspec {}", package, &refspec);
                     return Ok(Some((repo, refspec)));
                 } else {
-                    debug!("package archive {}.zip cound not be found in refspec {}, skipping to next repository", package, &refspec);
+                    debug!("package archive {}.tar.gz cound not be found in refspec {}, skipping to next repository", package, &refspec);
                     continue;
                 }
             },
@@ -230,7 +234,7 @@ fn find_repo_by_package_and_revision(
 }
 
 fn package_archive_is_in_repo(repo : &git2::Repository, package : &String) -> bool {
-    let archive_filename = format!("{}.zip", &package);
+    let archive_filename = format!("{}.tar.gz", &package);
     let mut path = repo.workdir().unwrap().to_owned();
 
     path.push(package);
@@ -314,7 +318,7 @@ fn install_command(
     repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
     let workdir = repo.workdir().unwrap();
-    let package_filename = format!("{}.zip", package);
+    let package_filename = format!("{}.tar.gz", package);
     let package_path = workdir.join(package).join(&package_filename);
 
     let (total, extracted) = if lfs::parse_lfs_link_file(&package_path).is_ok() {
@@ -374,96 +378,59 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn set_file_permissions(file : &mut fs::File, mode : u32) -> Result<(), io::Error> {
-    // use std::os::unix::fs::OpenOptionsExt;
-    use std::os::unix::fs::PermissionsExt;
-
-    let mut permissions = file.metadata().unwrap().permissions();
-
-    permissions.set_mode(mode);
-
-    file.set_permissions(permissions)
-}
-
-#[cfg(windows)]
-fn set_file_permissions(_file : &mut fs::File, _permissions : u32) -> Result<(), io::Error> {
-    Ok(()) // nothing
-}
-
 fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Result<(u32, u32), io::Error> {
     debug!("attempting to extract package archive {} in {}", path.display(), prefix.display());
 
-    let file = fs::File::open(&path)?;
-    let mut archive = zip::ZipArchive::new(file).unwrap();
+    let mut compressed_file = fs::File::open(&path)?;
+    let mut file = tempfile::tempfile().unwrap();
+    let mut decoder = Decoder::new(&mut compressed_file).unwrap();
+
+    debug!("start decoding {} in temporary file", path.display());
+
+    io::copy(&mut decoder, &mut file).unwrap();
+
+    file.seek(io::SeekFrom::Start(0)).unwrap();
+
+    debug!("{} decoded, start extracting archive into {}", path.display(), prefix.display());
+
     let mut num_extracted_files = 0;
     let mut num_files = 0;
 
-    // ! FIXME: compare checksums to know if we're actually upgrading/making changes
-
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i).unwrap();
-        let outpath = prefix.to_owned().join(file.sanitized_name());
+    let mut ar = Archive::new(file);
+    for file in ar.entries().unwrap() {
+        let mut file = file.unwrap();
+        let path = prefix.to_owned().join(file.path().unwrap());
 
         num_files += 1;
 
-        if outpath.exists() && !force {
-            warn!(
-                "file {} not extracted: path already exist, use --force to override",
-                outpath.as_path().display()
-            );
-            continue;
+        if path.exists() {
+            if !force {
+                warn!(
+                    "{} not extracted: path already exist, use --force to override",
+                    path.display()
+                );
+                continue;
+            }
+
+            debug!("{} already exists and --force in use: removing", &path.display());
+            if path.is_dir() {
+                fs::remove_dir_all(&path)?;
+            } else {
+                fs::remove_file(&path)?;
+            }
         }
+
+        file.unpack_in(prefix).unwrap();
+
+        debug!(
+            "file {} extracted to {} ({} bytes)",
+            file.path().unwrap().display(),
+            path.display(),
+            file.header().size().unwrap(),
+        );
 
         num_extracted_files += 1;
-
-        if (&*file.name()).ends_with('/') {
-            fs::create_dir_all(&outpath).unwrap();
-            
-            let mut outfile = fs::File::open(&outpath)
-                .expect("directory has not been properly created");
-
-            match file.unix_mode() {
-                Some(mode) => set_file_permissions(&mut outfile, mode)?,
-                None => (),
-            };
-            
-            debug!("file {} extracted to \"{}\"", i, outpath.as_path().display());
-        } else {
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(&p).unwrap();
-                }
-            }
-
-            if outpath.exists() {
-                fs::remove_file(&outpath)?;
-            }
-           
-            let mut outfile = fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(&outpath)
-                .unwrap();
-
-            match file.unix_mode() {
-                Some(mode) => set_file_permissions(&mut outfile, mode)?,
-                None => (),
-            };
-
-            io::copy(&mut file, &mut outfile).unwrap();
-
-            debug!(
-                "file {} extracted to \"{}\" ({} bytes)",
-                i,
-                outpath.as_path().display(),
-                file.size()
-            );
-        }
     }
-
-    info!("{} extracted files, {} files total", num_extracted_files, num_files);
 
     Ok((num_files, num_extracted_files))
 }

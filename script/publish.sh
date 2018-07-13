@@ -5,8 +5,8 @@ if ! [ -x "$(command -v git)" ]; then
     exit 1
 fi
 
-if ! [ -x "$(command -v zip)" ]; then
-    echo "error: zip is not installed" >&2
+if ! [ -x "$(command -v tar)" ]; then
+    echo "error: tar is not installed" >&2
     exit 1
 fi
 
@@ -34,11 +34,11 @@ VERSION=`grep -Po '(?<=version = ")[0-9\.]+' Cargo.toml`
 
 GIT_LFS_SKIP_SMUDGE=1 git clone https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/aerys/gpm-packages.git
 mkdir -p gpm-packages/gpm-linux64
-zip gpm-linux64.zip gpm
-cp gpm-linux64.zip gpm-packages/gpm-linux64
+tar -zcf gpm-linux64.tar.gz gpm
+cp gpm-linux64.tar.gz gpm-packages/gpm-linux64
 cd gpm-packages/gpm-linux64
-git add gpm-linux64.zip
-git commit gpm-linux64.zip -m "Publish gpm-linux64 version ${VERSION}."
+git add gpm-linux64.tar.gz
+git commit gpm-linux64.tar.gz -m "Publish gpm-linux64 version ${VERSION}."
 git tag gpm-linux64/${VERSION}
 git push
 git push --tags
