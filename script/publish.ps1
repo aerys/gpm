@@ -1,8 +1,6 @@
-appveyor PushArtifact .\target\release\gpm.exe
-
-if (-Not $env:APPVEYOR_REPO_TAG) {
+if ($env:APPVEYOR_REPO_TAG -ne 'true') {
     Write-Host "Not a tag: skip publishing."
-    exit 0    
+    exit 0
 }
 
 if ($env:target -ne "x86_64-pc-windows-msvc") {
@@ -18,9 +16,7 @@ $github_token = $env:GITHUB_TOKEN
 Remove-Item gpm-packages/gpm-windows64 -Force -Recurse -ErrorAction SilentlyContinue
 mkdir -Force -p gpm-packages/gpm-windows64
 7z a -ttar .\gpm-packages\gpm-windows64\gpm-windows64.tar .\target\release\gpm.exe
-appveyor PushArtifact .\gpm-packages\gpm-windows64\gpm-windows64.tar
 7z a -tgzip .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz .\gpm-packages\gpm-windows64\gpm-windows64.tar
-appveyor PushArtifact .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
 cd gpm-packages/gpm-windows64
 git config --global user.email "noreply@ci.appveyor.com" 2>&1 | Write-Host
 git config --global user.name "AppVeyor" 2>&1 | Write-Host
