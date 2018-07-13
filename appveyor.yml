@@ -93,6 +93,8 @@ install:
 build_script:
   - cargo build --release --verbose %cargoflags%
 
+test_script:
+  - .\target\release\gpm.exe -V
 
 deploy_script:
   - ps: .\script\publish.ps1
