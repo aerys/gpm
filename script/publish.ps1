@@ -17,7 +17,7 @@ $github_token = $env:GITHUB_TOKEN
 & { $env:GIT_LFS_SKIP_SMUDGE=1; git clone "https://${github_username}:${github_token}@github.com/aerys/gpm-packages.git" 2>&1 | Write-Host }
 Remove-Item gpm-packages/gpm-windows64 -Force -Recurse -ErrorAction SilentlyContinue
 mkdir -Force -p gpm-packages/gpm-windows64
-7z a -ttar -so archive.tar .\target\release\gpm.exe | 7z a -si .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
+7z a -ttar -so archive.tar .\target\release\gpm.exe | 7z a -tgzip -si .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
 appveyor PushArtifact .\gpm-packages\gpm-windows64\gpm-windows64.tar.gz
 cd gpm-packages/gpm-windows64
 git config --global user.email "noreply@ci.appveyor.com" 2>&1 | Write-Host
