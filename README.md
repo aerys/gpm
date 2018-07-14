@@ -33,11 +33,15 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [9.2. `clean`](#92-clean)
     - [9.3. `install`](#93-install)
     - [9.4. `download`](#94-download)
-- [10. FAQ](#10-faq)
-    - [10.1. Why GPM?](#101-why-gpm)
-    - [10.2. Why Git? Why not just `curl` or `wget` or whatever?](#102-why-git-why-not-just-curl-or-wget-or-whatever)
-    - [10.3. But Git does not like large binary files!](#103-but-git-does-not-like-large-binary-files)
-    - [10.4. Why storing packages as `*.tar.gz` archives?](#104-why-storing-packages-as-targz-archives)
+- [10. CI integration](#10-ci-integration)
+    - [10.1. Travis CI](#101-travis-ci)
+    - [10.2. AppVeyor](#102-appveyor)
+    - [10.3. GitLab CI](#103-gitlab-ci)
+- [11. FAQ](#11-faq)
+    - [11.1. Why GPM?](#111-why-gpm)
+    - [11.2. Why Git? Why not just `curl` or `wget` or whatever?](#112-why-git-why-not-just-curl-or-wget-or-whatever)
+    - [11.3. But Git does not like large binary files!](#113-but-git-does-not-like-large-binary-files)
+    - [11.4. Why storing packages as `*.tar.gz` archives?](#114-why-storing-packages-as-targz-archives)
 
 <!-- /TOC -->
 
@@ -380,9 +384,61 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## 10. FAQ
+## 10. CI integration
 
-### 10.1. Why GPM?
+### 10.1. Travis CI
+
+Here is a working Bash script to publish a package from Travis CI: [script/publish.sh](script/publish.sh).
+
+### 10.2. AppVeyor
+
+Here is a working PowerShell script to publish a package from AppVeyor: [script/publish.ps1](script/publish.ps1).
+
+### 10.3. GitLab CI
+
+Here is a template to publish a package from GitLab CI:
+
+```yml
+.gpm_publish_template: &gpm_publish_template
+  stage: archive
+  only:
+    - tags
+  variables:
+  script:
+    - cd ${PACKAGE_ARCHIVE_ROOT} && tar -zcf /tmp/${PACKAGE_NAME}.tar.gz * && cd -
+    - echo "${PACKAGE_REPOSITORY_KEY}" > /tmp/package-repository-key && chmod 700 /tmp/package-repository-key
+    - mkdir -p ~/.ssh && echo -e "Host *\n  StrictHostKeyChecking no\n  IdentityFile /tmp/package-repository-key" > ~/.ssh/config
+    - GIT_LFS_SKIP_SMUDGE=1 git clone ${PACKAGE_REPOSITORY} /tmp/package-repository
+    - mkdir -p /tmp/package-repository/${PACKAGE_NAME}
+    - mv /tmp/${PACKAGE_NAME}.tar.gz /tmp/package-repository/${PACKAGE_NAME}
+    - cd /tmp/package-repository/${PACKAGE_NAME}
+    - git config --global user.email "your@email.com"
+    - git config --global user.name "Your Name"
+    - git add ${PACKAGE_NAME}.tar.gz
+    - git commit ${PACKAGE_NAME}.tar.gz -m "Publish ${PACKAGE_NAME} version ${PACKAGE_VERSION}."
+    - git tag ${PACKAGE_NAME}/${PACKAGE_VERSION}
+    - git push
+    - git push --tags
+```
+
+and an example of how to use this template:
+
+```yml
+gpm-publish:
+  <<: *gpm_publish_template
+  variables:
+    PACKAGE_VERSION: ${CI_COMMIT_TAG} # the version of the package
+    PACKAGE_REPOSITORY: ssh://my.gitlab.com/my-packages.git # the package repository to publish to
+    PACKAGE_NAME: ${CI_PROJECT_NAME} # the name of the package
+    PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR} # the folder containing the files to put in the package archive
+```
+
+This template relies on the `PACKAGE_REPOSITORY_KEY` GitLab CI variable.
+It must contain a passphrase-less SSH deploy key (with write permissions) to your package repository.
+
+## 11. FAQ
+
+### 11.1. Why GPM?
 
 GPM means "Git-based Package Manager".
 
@@ -394,7 +450,7 @@ Platforms like GitLab and GitHub are then very handy to manage such package arch
 GPM is also available as an all-in-one static binary.
 It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
 
-### 10.2. Why Git? Why not just `curl` or `wget` or whatever?
+### 11.2. Why Git? Why not just `curl` or `wget` or whatever?
 
 GPM aims at leveraging the Git ecosystem and features.
 
@@ -404,7 +460,7 @@ For example, Git is also used by the Docker registry to store Docker images.
 Git also has a safe and secured native authentication/authorization strategy through SSH.
 With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/README.html#deploy-keys) to give a read-only access to your packages.
 
-### 10.3. But Git does not like large binary files!
+### 11.3. But Git does not like large binary files!
 
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
@@ -413,7 +469,7 @@ That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM re
 
 Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
 
-### 10.4. Why storing packages as `*.tar.gz` archives?
+### 11.4. Why storing packages as `*.tar.gz` archives?
 
 Vanilla Git will compress objects. But [git-lfs](https://git-lfs.github.com/) doesn't store objects in the actual Git
 repository: they are stored "somewhere else".
