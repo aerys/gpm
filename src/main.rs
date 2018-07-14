@@ -438,6 +438,8 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Re
         num_extracted_files += 1;
     }
 
+    info!("extracted {}/{} file(s)", num_extracted_files, num_files);
+
     Ok((num_files, num_extracted_files))
 }
 
