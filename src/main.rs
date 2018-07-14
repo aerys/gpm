@@ -28,8 +28,7 @@ use tar::Archive;
 extern crate tempfile;
 use tempfile::tempdir;
 
-extern crate libflate;
-use libflate::gzip::Decoder;
+extern crate flate2;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -381,22 +380,30 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
 fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Result<(u32, u32), io::Error> {
     debug!("attempting to extract package archive {} in {}", path.display(), prefix.display());
 
-    let mut compressed_file = fs::File::open(&path)?;
+    let compressed_file = fs::File::open(&path)?;
     let mut file = tempfile::tempfile().unwrap();
-    let mut decoder = Decoder::new(&mut compressed_file).unwrap();
 
-    debug!("start decoding {} in temporary file", path.display());
+    {
+        let mut writer = io::BufWriter::new(&file);
+        let reader = io::BufReader::new(&compressed_file);
+        let mut decoder = flate2::read::GzDecoder::new(reader);
 
-    io::copy(&mut decoder, &mut file).unwrap();
+        debug!("start decoding {} in temporary file", path.display());
 
-    file.seek(io::SeekFrom::Start(0)).unwrap();
+        io::copy(&mut decoder, &mut writer).unwrap();
 
-    debug!("{} decoded, start extracting archive into {}", path.display(), prefix.display());
+        debug!("{} decoded", path.display());
+    }
+
+    debug!("start extracting archive into {}", prefix.display());
+
+    file.seek(io::SeekFrom::Start(0))?;
 
     let mut num_extracted_files = 0;
     let mut num_files = 0;
+    let reader = io::BufReader::new(&file);
 
-    let mut ar = Archive::new(file);
+    let mut ar = Archive::new(reader);
     for file in ar.entries().unwrap() {
         let mut file = file.unwrap();
         let path = prefix.to_owned().join(file.path().unwrap());
@@ -423,8 +430,7 @@ fn extract_package(path : &path::Path, prefix : &path::Path, force : bool) -> Re
         file.unpack_in(prefix).unwrap();
 
         debug!(
-            "file {} extracted to {} ({} bytes)",
-            file.path().unwrap().display(),
+            "extracted file {} ({} bytes)",
             path.display(),
             file.header().size().unwrap(),
         );
@@ -646,10 +652,14 @@ fn main() {
                 if success {
                     info!("package repositories successfully updated")
                 } else {
-                    error!("package repositories have not been updated, check the logs for warnings/errors")
+                    error!("package repositories have not been updated, check the logs for warnings/errors");
+                    std::process::exit(1);
                 }
             },
-            Err(e) => error!("could not update repositories: {}", e),
+            Err(e) => {
+                error!("could not update repositories: {}", e);
+                std::process::exit(1);
+            },
         }
     }
 
@@ -659,10 +669,14 @@ fn main() {
                 if success {
                     info!("cache successfully cleaned")
                 } else {
-                    error!("cache has not been cleaned, check the logs for warnings/errors")
+                    error!("cache has not been cleaned, check the logs for warnings/errors");
+                    std::process::exit(1);
                 }
             },
-            Err(e) => error!("could not clean cache: {}", e),
+            Err(e) => {
+                error!("could not clean cache: {}", e);
+                std::process::exit(1);
+            },
         }
     }
 
@@ -671,10 +685,12 @@ fn main() {
         let prefix = path::Path::new(matches.value_of("prefix").unwrap());
 
         if !prefix.exists() {
-            panic!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
+            error!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
+            std::process::exit(1);
         }
         if !prefix.is_dir() {
-            panic!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+            error!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+            std::process::exit(1);
         }
 
         let package = String::from(matches.value_of("package").unwrap());
@@ -691,9 +707,13 @@ fn main() {
             Ok(success) => if success {
                 info!("package {} successfully installed at revision {} in {}", package, revision, prefix.display())
             } else {
-                error!("package {} was not successfully installed at revision {} in {}, check the logs for warnings/errors", package, revision, prefix.display())
+                error!("package {} was not successfully installed at revision {} in {}, check the logs for warnings/errors", package, revision, prefix.display());
+                std::process::exit(1);
             },
-            Err(e) => error!("could not install package \"{}\" at revision {}: {}", package, revision, e),
+            Err(e) => {
+                error!("could not install package \"{}\" at revision {}: {}", package, revision, e);
+                std::process::exit(1);
+            },
         }
     }
 
@@ -715,9 +735,15 @@ fn main() {
                     info!("package {} successfully downloaded at revision {}", package, revision);
                 } else {
                     error!("package {} has not been downloaded, check the logs for warnings/errors", package);
+                    std::process::exit(1);
                 }
             },
-            Err(e) => error!("could not download package \"{}\" at revision {}: {}", package, revision, e),
-        }
+            Err(e) => {
+                error!("could not download package \"{}\" at revision {}: {}", package, revision, e);
+                std::process::exit(1);
+            },
+        };
     }
+
+    std::process::exit(0);
 }
