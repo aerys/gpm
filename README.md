@@ -37,7 +37,7 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [10.1. Why GPM?](#101-why-gpm)
     - [10.2. Why Git? Why not just `curl` or `wget` or whatever?](#102-why-git-why-not-just-curl-or-wget-or-whatever)
     - [10.3. But Git does not like large binary files!](#103-but-git-does-not-like-large-binary-files)
-    - [10.4. Why storing packages as ZIP archives?](#104-why-storing-packages-as-zip-archives)
+    - [10.4. Why storing packages as `*.tar.gz` archives?](#104-why-storing-packages-as-targz-archives)
 
 <!-- /TOC -->
 
@@ -54,10 +54,10 @@ git clone ssh://path.to/my/package-repository.git
 cd package-repository
 ```
 
-4. Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.zip` files:
+4. Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.tar.gz` files:
 
 ```bash
-git lfs track "*.zip"
+git lfs track "*.tar.gz"
 ```
 
 5. Add, commit and push `.gitattributes`:
@@ -90,14 +90,14 @@ echo "#/bin/sh\necho 'Hello World!'" > hello-world.sh
 4. Create your package archive:
 
 ```bash
-zip hello-world.zip hello-world.sh
+tar -cvzf hello-world.tar.gz hello-world.sh
 ```
 
 5. Add and commit your package archive:
 
 ```bash
-git add hello-world.zip
-git commit hello-world.zip -m "Publish hello-world version 1.0"
+git add hello-world.tar.gz
+git commit hello-world.tar.gz -m "Publish hello-world version 1.0"
 ```
 
 6. Tag your package release with a specific version number:
@@ -267,8 +267,8 @@ For each available remote:
     * Otherwise, if `refs/heads/${revision}` can be found it will be used.
     * Otherwise, skip to the next remote.
 2. If a valid refspec has been found, reset the repositories to this refspec. Throw an error otherwise.
-3. If the `${name}/${name}.zip` exists at this refspec, use it. Throw an error otherwise.
-4. If `${name}/${name}.zip` is a git-lfs link, resolve it. Otherwise, use `${name}/${name}.zip` directly.
+3. If the `${name}/${name}.tar.gz` exists at this refspec, use it. Throw an error otherwise.
+4. If `${name}/${name}.tar.gz` is a git-lfs link, resolve it. Otherwise, use `${name}/${name}.tar.gz` directly.
 
 ## 7. Working with multiple package repositories
 
@@ -413,16 +413,10 @@ That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM re
 
 Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
 
-### 10.4. Why storing packages as ZIP archives?
+### 10.4. Why storing packages as `*.tar.gz` archives?
 
-Vanilla Git will compress objects. But git-lfs doesn't store objects in the actual Git
+Vanilla Git will compress objects. But [git-lfs](https://git-lfs.github.com/) doesn't store objects in the actual Git
 repository: they are stored "somewhere else".
 
 To make sure we don't use too much disk space/bandwidth "somewhere else", the
 package archive is stored compressed.
-
-`gpm` is using ZIP because:
-* it's the most common compression algorithms already supported by Rust;
-* tools to create ZIP archives are widely available and easy to use.
-
-`gpm` might support other compression algorithms in the future.
