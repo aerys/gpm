@@ -209,7 +209,7 @@ fn find_repo_by_package_and_revision(
         repo.set_head("refs/heads/master")?;
         repo.checkout_head(Some(&mut builder))?;
 
-        match revision_to_refspec(&repo, &revision) {
+        match revision_to_refspec(&repo, &package, &revision) {
             Some(refspec) => {
                 debug!("revision {} found with refspec {}", revision, refspec);
 
@@ -246,12 +246,21 @@ fn package_archive_is_in_repo(repo : &git2::Repository, package : &String) -> bo
     return path.exists();
 }
 
-fn revision_to_refspec(repo : &git2::Repository, revision : &String) -> Option<String> {
+fn revision_to_refspec(
+    repo : &git2::Repository,
+    package : &String,
+    revision : &String,
+) -> Option<String> {
     if repo.refname_to_id(&revision).is_ok() {
             return Some(revision.to_owned());
     }
 
     let tag_refspec = format!("refs/tags/{}", &revision);
+    if repo.refname_to_id(&tag_refspec).is_ok() {
+        return Some(tag_refspec);
+    }
+
+    let tag_refspec = format!("refs/tags/{}/{}", &package, &revision);
     if repo.refname_to_id(&tag_refspec).is_ok() {
         return Some(tag_refspec);
     }
@@ -278,7 +287,7 @@ fn find_or_init_repo(
                 pull_repo(&repo).map_err(CommandError::Git)?;
             }
 
-            match revision_to_refspec(&repo, revision) {
+            match revision_to_refspec(&repo, package, revision) {
                 Some(refspec) => Ok(Some((repo, refspec))),
                 // We could not find the revision in the specified remote.
                 // So we make the repo throw an error on purpose:

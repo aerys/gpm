@@ -23,7 +23,8 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [5.1. `${package}=${revision}` notation](#51-packagerevision-notation)
     - [5.2. Shorthand notations](#52-shorthand-notations)
         - [5.2.1. Implicit package name in revision (recommended)](#521-implicit-package-name-in-revision-recommended)
-        - [5.2.2. Latest revision notation](#522-latest-revision-notation)
+        - [5.2.2. Semver notation](#522-semver-notation)
+        - [5.2.3. Latest revision notation](#523-latest-revision-notation)
     - [5.3. URI notation](#53-uri-notation)
 - [6. Matching package references](#6-matching-package-references)
 - [7. Working with multiple package repositories](#7-working-with-multiple-package-repositories)
@@ -239,7 +240,13 @@ If therere is no package name explicitely provided and the revision contains a `
 
 For example, the package reference `my-package/2.0` will be interpreted as `my-package=my-package/2.0`.
 
-#### 5.2.2. Latest revision notation
+#### 5.2.2. Semver notation
+
+If the package reference contains a `=`, the tag refspec will be deduced from the package name and the revision.
+
+For example, the package reference `my-package=2.0` will be interpreted as `my-package=my-package/2.0`.
+
+#### 5.2.3. Latest revision notation
 
 If the package reference is not an URI and contains neither `/` nor `=`, then `gpm` assumes:
 * the package reference is the package name;
@@ -275,6 +282,7 @@ For each available remote:
 1. Try to find the refspec matching `${revision}`:
     * If `${revision}` is a valid refspec and can be found, then it will be used directly.
     * Otherwise, if `refs/tags/${revision}` can be found, it will be used.
+    * Otherwise, if `refs/tags/${name}/${revision}` can be found, it will be used.
     * Otherwise, if `refs/heads/${revision}` can be found it will be used.
     * Otherwise, skip to the next remote.
 2. If a valid refspec has been found, reset the repositories to this refspec. Throw an error otherwise.
