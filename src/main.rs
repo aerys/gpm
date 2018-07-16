@@ -484,13 +484,24 @@ pub fn git_credentials_callback(
     match env::var("GPM_SSH_KEY") {
         Ok(k) => {
             let key_path = path::Path::new(&k);
+            let (pass_string, has_pass) = match env::var("GPM_SSH_PASS") {
+                Ok(p) => (p, true),
+                Err(_) => (String::new(), false),
+            };
+            let pass_opt = if has_pass {
+                Some(pass_string.as_str())
+            } else {
+                None
+            };
 
             if key_path.exists() {
                 debug!("authenticate with user {} and private key located in {}", user, k);
-                git2::Cred::ssh_key(user, None, key_path, None)
+
+                git2::Cred::ssh_key(user, None, key_path, pass_opt)
             } else {
                 debug!("authenticate with user {} and private key stored in the GPM_SSH_KEY env var", user);
-                git2::Cred::ssh_key_from_memory(user, None, &k, None)
+
+                git2::Cred::ssh_key_from_memory(user, None, &k, pass_opt)
             }
         },
         _ => Err(git2::Error::from_str("unable to get private key from GPM_SSH_KEY")),
