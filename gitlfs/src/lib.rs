@@ -140,13 +140,14 @@ pub mod lfs {
         refspec : Option<String>,
         p : &path::Path, 
         target : Option<&path::Path>,
-        private_key : Option<String>) -> Result<bool, io::Error>
+        private_key : Option<String>,
+        passphrase : Option<String>) -> Result<bool, io::Error>
     {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
             None => return Ok(false),
         };
-        let (auth_token, url) = match get_lfs_auth_token(repository, "download", private_key) {
+        let (auth_token, url) = match get_lfs_auth_token(repository, "download", private_key, passphrase) {
             Ok((t, u)) => (t, u),
             Err(e) => panic!("unable to get LFS batch authorization token: {}", e),
         };
@@ -169,8 +170,9 @@ pub mod lfs {
     pub fn get_lfs_auth_token(
         repository : Url,
         op : &str,
-        private_key : Option<String>) -> Result<(Option<String>, String), json::Error>
-    {
+        private_key : Option<String>,
+        passphrase : Option<String>,
+    ) -> Result<(Option<String>, String), json::Error> {
         let host_and_port = format!(
             "{}:{}",
             repository.host_str().unwrap(),
@@ -196,8 +198,17 @@ pub mod lfs {
                 debug!("attempt SSH public key authentication with key {}", ssh_key);
 
                 let ssh_key_path = path::Path::new(&ssh_key);
+                let (ssh_pass_string, has_passphrase) = match passphrase {
+                    Some(p) => (p, true),
+                    None => (String::new(), false),
+                };
+                let ssh_pass = if has_passphrase {
+                    Some(ssh_pass_string.as_str())
+                } else {
+                    None
+                };
                 
-                match sess.userauth_pubkey_file("git", None, ssh_key_path, None) {
+                match sess.userauth_pubkey_file("git", None, ssh_key_path, ssh_pass) {
                     Ok(()) => {
                         debug!("SSH session authenticated");
 
