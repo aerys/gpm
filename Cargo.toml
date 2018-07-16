@@ -1,6 +1,6 @@
 [package]
 name = "gpm"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 
 [profile.release]
