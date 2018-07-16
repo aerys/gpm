@@ -121,7 +121,12 @@ Your `hello-world/1.0` package is now stored in your package repository and can 
 
 ### 1.3. Installing your first package
 
-1. Download or build `gpm`.
+1. Download (or build) `gpm`.
+
+```bash
+curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-linux64/gpm-linux64.tar.gz | tar xvz
+```
+
 2. Add your package repository to the `gpm` sources:
 
 ```bash
