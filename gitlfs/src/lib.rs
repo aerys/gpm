@@ -195,20 +195,22 @@ pub mod lfs {
                 debug!("SSH session handshake");
                 sess.handshake(&tcp).unwrap();
 
-                debug!("attempt SSH public key authentication with key {}", ssh_key);
 
                 let ssh_key_path = path::Path::new(&ssh_key);
-                let (ssh_pass_string, has_passphrase) = match passphrase {
-                    Some(p) => (p, true),
-                    None => (String::new(), false),
+                let (has_pass, pass) = match passphrase {
+                    Some(p) => (true, p),
+                    None => (false, String::new())
                 };
-                let ssh_pass = if has_passphrase {
-                    Some(ssh_pass_string.as_str())
+
+                let ssh_auth = if ssh_key_path.exists() {
+                    debug!("attempting SSH public key authentication with key {}", ssh_key_path.display());
+                    sess.userauth_pubkey_file("git", None, ssh_key_path, if has_pass { Some(pass.as_str()) } else { None })
                 } else {
-                    None
+                    debug!("attempting SSH public key authentication with the key stored in GPM_SSH_KEY");
+                    sess.userauth_pubkey_memory("git", None, &ssh_key, if has_pass { Some(pass.as_str()) } else { None })
                 };
-                
-                match sess.userauth_pubkey_file("git", None, ssh_key_path, ssh_pass) {
+
+                match ssh_auth {
                     Ok(()) => {
                         debug!("SSH session authenticated");
 
@@ -264,7 +266,6 @@ pub mod lfs {
         }
 
         let mut res = req.send()?;
-
 
         match io::copy(&mut res, &mut file) {
             Ok(_) => {

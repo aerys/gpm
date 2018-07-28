@@ -30,6 +30,8 @@ use tempfile::tempdir;
 
 extern crate flate2;
 
+extern crate dialoguer;
+
 #[derive(Debug)]
 pub enum CommandError {
     IO(io::Error),
@@ -166,19 +168,16 @@ fn download_command(
 
     if lfs::parse_lfs_link_file(&package_path).is_ok() {
         info!("start downloading archive {} from LFS", package_filename);
+
+        let (key, passphrase) = get_ssh_key_and_passphrase()?;
+
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
             Some(refspec),
             &package_path,
             Some(&cwd_package_path),
-            match env::var("GPM_SSH_KEY") {
-                Ok(k) => Some(k),
-                Err(_) => None,
-            },
-            match env::var("GPM_SSH_PASS") {
-                Ok(k) => Some(k),
-                Err(_) => None,
-            },
+            Some(key),
+            passphrase,
         ).map_err(CommandError::IO)?;
     } else {
         fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
@@ -334,23 +333,19 @@ fn install_command(
     let package_path = workdir.join(package).join(&package_filename);
 
     let (total, extracted) = if lfs::parse_lfs_link_file(&package_path).is_ok() {
+        info!("start downloading archive {} from LFS", package_filename);
+
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
         let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
-
-        info!("start downloading archive {} from LFS", package_filename);
+        let (key, passphrase) = get_ssh_key_and_passphrase()?;
+        
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
             Some(refspec),
             &package_path,
             Some(&tmp_package_path),
-            match env::var("GPM_SSH_KEY") {
-                Ok(k) => Some(k),
-                Err(_) => None,
-            },
-            match env::var("GPM_SSH_PASS") {
-                Ok(k) => Some(k),
-                Err(_) => None,
-            },
+            Some(key),
+            passphrase,
         ).map_err(CommandError::IO)?;
         
         extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
@@ -487,6 +482,69 @@ fn get_or_init_cache_dir() -> Result<std::path::PathBuf, io::Error> {
     Ok(cache)
 }
 
+fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
+    for line in buf.lines() {
+        if line.unwrap().contains("ENCRYPTED") {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+fn get_ssh_key_and_passphrase() -> Result<(String, Option<String>), git2::Error> {
+    match env::var("GPM_SSH_KEY") {
+        Ok(k) => {
+            let key_path = k.clone();
+            let key_path = path::Path::new(&key_path);
+
+            if key_path.exists() {
+                debug!("authenticate with private key located in {}", k);
+
+                let mut f = fs::File::open(key_path).unwrap();
+                let mut key = String::new();
+
+                f.read_to_string(&mut key).expect("unable to read SSH key from file");
+                f.seek(io::SeekFrom::Start(0)).unwrap();
+
+                let mut f = io::BufReader::new(f);
+
+                Ok((
+                    key,
+                    get_ssh_passphrase(&mut f, format!("Enter passphrase for key '{}'", key_path.display()))
+                ))
+            } else {
+                debug!("authenticate with private key stored in the GPM_SSH_KEY env var");
+
+                let passphrase = {
+                    let mut f = io::BufReader::new(k.as_bytes());
+
+                    get_ssh_passphrase(&mut f, String::from("Enter passphrase for key stored in GPM_SSH_KEY"))
+                };
+
+                Ok((k, passphrase))
+            }
+        },
+        _ => Err(git2::Error::from_str("unable to get private key from GPM_SSH_KEY"))
+    }
+}
+
+fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) -> Option<String> {
+    match ssh_key_requires_passphrase(buf) {
+        true => match env::var("GPM_SSH_PASS") {
+            Ok(p) => Some(p),
+            Err(_) => {
+                let pass_string = dialoguer::PasswordInput::new(passphrase_prompt.as_str())
+                    .interact()
+                    .unwrap();
+
+                Some(pass_string)
+            }
+        },
+        false => None,
+    }
+}
+
 pub fn git_credentials_callback(
     _user: &str,
     _user_from_url: Option<&str>,
@@ -498,31 +556,13 @@ pub fn git_credentials_callback(
         return git2::Cred::username(user);
     }
 
-    match env::var("GPM_SSH_KEY") {
-        Ok(k) => {
-            let key_path = path::Path::new(&k);
-            let (pass_string, has_pass) = match env::var("GPM_SSH_PASS") {
-                Ok(p) => (p, true),
-                Err(_) => (String::new(), false),
-            };
-            let pass_opt = if has_pass {
-                Some(pass_string.as_str())
-            } else {
-                None
-            };
+    let (key, passphrase) = get_ssh_key_and_passphrase()?;
+    let (has_pass, passphrase) = match passphrase {
+        Some(p) => (true, p),
+        None => (false, String::new()),
+    };
 
-            if key_path.exists() {
-                debug!("authenticate with user {} and private key located in {}", user, k);
-
-                git2::Cred::ssh_key(user, None, key_path, pass_opt)
-            } else {
-                debug!("authenticate with user {} and private key stored in the GPM_SSH_KEY env var", user);
-
-                git2::Cred::ssh_key_from_memory(user, None, &k, pass_opt)
-            }
-        },
-        _ => Err(git2::Error::from_str("unable to get private key from GPM_SSH_KEY")),
-    }
+    git2::Cred::ssh_key_from_memory(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
 }
 
 fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
