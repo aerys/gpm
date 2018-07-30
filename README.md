@@ -184,7 +184,9 @@ If the repository is "public", then no authentication should be required.
 Otherwise, for now, only authentication through an SSH private key is supported.
 The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
 
-If that SSH key requires a passphrase, then it should be set in the `GPM_SSH_PASS` environment variable.
+If that SSH key requires a passphrase, then:
+* if the `GPM_SSH_PASS` environment variable is set/not empty, it is used as the passphrase;
+* otherwise, `gpm` will prompt the user to type his passphrase.
 
 ## 4. Best practices
 
