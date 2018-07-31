@@ -617,8 +617,11 @@ fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) -> Opt
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
             Err(_) => {
+                trace!("prompt for passphrase");
                 let pass_string = rpassword::prompt_password_stdout(passphrase_prompt.as_str())
                     .unwrap();
+
+                trace!("passphrase fetched from command line");
 
                 Some(pass_string)
             }
@@ -650,28 +653,6 @@ fn get_git_credentials_callback(
         git2::Cred::ssh_key(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
     }
 }
-
-/*
-fn git_credentials_callback(
-    _user: &str,
-    _user_from_url: Option<&str>,
-    _cred: git2::CredentialType,
-) -> Result<git2::Cred, git2::Error> {
-    let user = _user_from_url.unwrap_or("git");
-
-    if _cred.contains(git2::CredentialType::USERNAME) {
-        return git2::Cred::username(user);
-    }
-
-    let (key, passphrase) = get_ssh_key_and_passphrase()?;
-    let (has_pass, passphrase) = match passphrase {
-        Some(p) => (true, p),
-        None => (false, String::new()),
-    };
-
-    git2::Cred::ssh_key(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
-}
-*/
 
 fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
     let cache = get_or_init_cache_dir().map_err(CommandError::IO)?;
