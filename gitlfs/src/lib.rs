@@ -135,14 +135,14 @@ pub mod lfs {
         Ok((auth_token, url))
     }
 
-    pub fn resolve_lfs_link(
+    pub fn resolve_lfs_link<W: Write>(
         repository : Url,
         refspec : Option<String>,
         p : &path::Path, 
-        target : Option<&path::Path>,
+        target: &mut W,
         private_key : Option<path::PathBuf>,
-        passphrase : Option<String>) -> Result<bool, io::Error>
-    {
+        passphrase : Option<String>,
+    ) -> Result<bool, io::Error> {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
             None => return Ok(false),
@@ -156,7 +156,7 @@ pub mod lfs {
             Err(e) => panic!("unable to fetch LFS download link: {}", e),
         };
 
-        match download_lfs_object(target.unwrap_or(p), auth_token, &url) {
+        match download_lfs_object(target, auth_token, &url) {
             Ok(()) => Ok(true),
             Err(e) => panic!("failed to donwload LFS object: {}", e),
         }
@@ -241,21 +241,12 @@ pub mod lfs {
         };
     }
 
-    pub fn download_lfs_object(
-        path : &path::Path,
+    pub fn download_lfs_object<W: Write>(
+        target : &mut W,
         auth_token : Option<String>,
         url : &String,
     ) -> Result<(), reqwest::Error> {
-        debug!("preparing to download LFS object in {}", path.to_str().unwrap());
-
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path)
-            .expect("unable to open LFS object target file");
-
-        debug!("start downloading LFS object into {}", path.to_str().unwrap());
+        debug!("start downloading LFS object");
 
         let client = reqwest::Client::new();
         let mut req = client.get(url);
@@ -266,7 +257,7 @@ pub mod lfs {
 
         let mut res = req.send()?;
 
-        match io::copy(&mut res, &mut file) {
+        match io::copy(&mut res, target) {
             Ok(_) => {
                 debug!("LFS object download complete");
                 
