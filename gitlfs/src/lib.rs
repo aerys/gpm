@@ -140,7 +140,7 @@ pub mod lfs {
         refspec : Option<String>,
         p : &path::Path, 
         target : Option<&path::Path>,
-        private_key : Option<String>,
+        private_key : Option<path::PathBuf>,
         passphrase : Option<String>) -> Result<bool, io::Error>
     {
         let (oid, size) = match parse_lfs_link_file(p)? {
@@ -170,7 +170,7 @@ pub mod lfs {
     pub fn get_lfs_auth_token(
         repository : Url,
         op : &str,
-        private_key : Option<String>,
+        private_key : Option<path::PathBuf>,
         passphrase : Option<String>,
     ) -> Result<(Option<String>, String), json::Error> {
         let host_and_port = format!(
@@ -196,19 +196,18 @@ pub mod lfs {
                 sess.handshake(&tcp).unwrap();
 
 
-                let ssh_key_path = path::Path::new(&ssh_key);
                 let (has_pass, pass) = match passphrase {
                     Some(p) => (true, p),
                     None => (false, String::new())
                 };
 
-                let ssh_auth = if ssh_key_path.exists() {
-                    debug!("attempting SSH public key authentication with key {}", ssh_key_path.display());
-                    sess.userauth_pubkey_file("git", None, ssh_key_path, if has_pass { Some(pass.as_str()) } else { None })
-                } else {
-                    debug!("attempting SSH public key authentication with the key stored in GPM_SSH_KEY");
-                    sess.userauth_pubkey_memory("git", None, &ssh_key, if has_pass { Some(pass.as_str()) } else { None })
-                };
+                debug!("attempting SSH public key authentication with key {:?}", ssh_key);
+                let ssh_auth = sess.userauth_pubkey_file(
+                    "git",
+                    None,
+                    &path::Path::new(&ssh_key),
+                    if has_pass { Some(pass.as_str()) } else { None }
+                );
 
                 match ssh_auth {
                     Ok(()) => {

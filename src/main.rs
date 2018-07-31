@@ -30,7 +30,7 @@ use tempfile::tempdir;
 
 extern crate flate2;
 
-extern crate dialoguer;
+extern crate rpassword;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -56,6 +56,84 @@ impl fmt::Display for CommandError {
             CommandError::IO(e) => write!(f, "{}", e),
             CommandError::Git(s) => write!(f, "{}", s),
         }
+    }
+}
+
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+
+use pest::Parser;
+
+#[derive(Parser)]
+#[grammar = "ssh_config.pest"]
+struct SSHConfigParser;
+
+extern crate regex;
+
+fn find_ssh_key_for_host(host : &String) -> Result<Option<path::PathBuf>, io::Error> {
+    match env::home_dir() {
+        Some(path) => {
+            let mut path = path::PathBuf::from(path);
+
+            path.push(".ssh");
+            path.push("config");
+
+            let mut f = fs::File::open(path.to_owned())?;
+            let mut contents = String::new();
+
+            f.read_to_string(&mut contents)?;
+
+            trace!("parsing {:?} to find host {}", path, host);
+
+            let pairs = SSHConfigParser::parse(Rule::config, &contents)
+                .unwrap_or_else(|e| panic!("{}", e));
+
+            for pair in pairs {
+                let mut inner_pairs = pair.into_inner().flatten();
+                let pattern = inner_pairs.find(|p| -> bool {
+                    let pattern_str = String::from(p.as_str());
+
+                    match pattern_str.contains("*") {
+                        true => {
+                            // convert the globbing pattern to a regexp
+                            let pattern_str = pattern_str.replace(".", "\\.");
+                            let pattern_str = pattern_str.replace("*", ".*");
+                            let regexp = regex::Regex::new(pattern_str.as_str())
+                                .unwrap();
+
+                            p.as_rule() == Rule::pattern && regexp.is_match(host)
+                        },
+                        false => p.as_rule() == Rule::pattern && p.as_str() == host
+                    }
+                });
+
+                match pattern {
+                    Some(pattern) => {
+                        trace!("found matching host with pattern {:?}", pattern.as_str());
+
+                        let options = inner_pairs.filter(|p| -> bool { p.as_rule() == Rule::option });
+
+                        for option in options {
+                            let mut key_and_value = option.into_inner().flatten();
+                            let key = key_and_value.find(|p| -> bool { p.as_rule() == Rule::key }).unwrap();
+                            let value = key_and_value.find(|p| -> bool { p.as_rule() == Rule::value }).unwrap();
+
+                            if key.as_str() == "IdentityFile" {
+                                let path = path::PathBuf::from(value.as_str());
+
+                                trace!("found IdentityFile option with value {:?}", path);
+                                return Ok(Some(path));
+                            }
+                        }
+                    },
+                    None => continue,
+                };
+            }
+
+            Ok(None)
+        },
+        None => Ok(None),
     }
 }
 
@@ -169,7 +247,8 @@ fn download_command(
     if lfs::parse_lfs_link_file(&package_path).is_ok() {
         info!("start downloading archive {} from LFS", package_filename);
 
-        let (key, passphrase) = get_ssh_key_and_passphrase()?;
+        let uri : Url = remote.parse().unwrap();
+        let (key, passphrase) = get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()))?;
 
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
@@ -337,7 +416,8 @@ fn install_command(
 
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
         let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
-        let (key, passphrase) = get_ssh_key_and_passphrase()?;
+        let uri : Url = remote.parse().unwrap();
+        let (key, passphrase) = get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()))?;
         
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
@@ -368,13 +448,13 @@ fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     info!("fetching changes for repository {}", repo.workdir().unwrap().display());
 
     let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(git_credentials_callback);
+    let mut origin_remote = repo.find_remote("origin")?;
+    callbacks.credentials(get_git_credentials_callback(&String::from(origin_remote.url().unwrap())));
 
     let mut opts = git2::FetchOptions::new();
     opts.remote_callbacks(callbacks);
     opts.download_tags(git2::AutotagOption::All);
 
-    let mut origin_remote = repo.find_remote("origin")?;
     origin_remote.fetch(&["master"], Some(&mut opts), None)?;
 
     let oid = repo.refname_to_id("refs/remotes/origin/master")?;
@@ -492,40 +572,43 @@ fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
     return false;
 }
 
-fn get_ssh_key_and_passphrase() -> Result<(String, Option<String>), git2::Error> {
-    match env::var("GPM_SSH_KEY") {
-        Ok(k) => {
-            let key_path = k.clone();
-            let key_path = path::Path::new(&key_path);
+fn get_ssh_key_and_passphrase(host : &String) -> Result<(path::PathBuf, Option<String>), git2::Error> {
+    let key_path = match find_ssh_key_for_host(host) {
+        Ok(path) => path,
+        Err(e) => {
+            warn!("could not find private key path from ~/.ssh/config: {}", e);
 
-            if key_path.exists() {
-                debug!("authenticate with private key located in {}", k);
+            match env::var("GPM_SSH_KEY") {
+                Ok(k) => Some(path::PathBuf::from(k)),
+                Err(e) => {
+                    warn!("could not read the GPM_SSH_KEY environment variable: {}", e);
 
-                let mut f = fs::File::open(key_path).unwrap();
-                let mut key = String::new();
-
-                f.read_to_string(&mut key).expect("unable to read SSH key from file");
-                f.seek(io::SeekFrom::Start(0)).unwrap();
-
-                let mut f = io::BufReader::new(f);
-
-                Ok((
-                    key,
-                    get_ssh_passphrase(&mut f, format!("Enter passphrase for key '{}'", key_path.display()))
-                ))
-            } else {
-                debug!("authenticate with private key stored in the GPM_SSH_KEY env var");
-
-                let passphrase = {
-                    let mut f = io::BufReader::new(k.as_bytes());
-
-                    get_ssh_passphrase(&mut f, String::from("Enter passphrase for key stored in GPM_SSH_KEY"))
-                };
-
-                Ok((k, passphrase))
+                    None
+                }
             }
         },
-        _ => Err(git2::Error::from_str("unable to get private key from GPM_SSH_KEY"))
+    };
+
+    match key_path {
+        Some(key_path) => {
+            debug!("authenticate with private key located in {:?}", key_path);
+
+            let mut f = fs::File::open(key_path.to_owned()).unwrap();
+            let mut key = String::new();
+
+            f.read_to_string(&mut key).expect("unable to read SSH key from file");
+            f.seek(io::SeekFrom::Start(0)).unwrap();
+
+            let mut f = io::BufReader::new(f);
+
+            Ok((
+                key_path.to_owned(),
+                get_ssh_passphrase(&mut f, format!("Enter passphrase for key {:?}: ", key_path))
+            ))
+        },
+        None => {
+            Err(git2::Error::from_str("unable to get private key"))
+        }
     }
 }
 
@@ -534,9 +617,11 @@ fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) -> Opt
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
             Err(_) => {
-                let pass_string = dialoguer::PasswordInput::new(passphrase_prompt.as_str())
-                    .interact()
+                trace!("prompt for passphrase");
+                let pass_string = rpassword::prompt_password_stdout(passphrase_prompt.as_str())
                     .unwrap();
+
+                trace!("passphrase fetched from command line");
 
                 Some(pass_string)
             }
@@ -545,24 +630,28 @@ fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) -> Opt
     }
 }
 
-pub fn git_credentials_callback(
-    _user: &str,
-    _user_from_url: Option<&str>,
-    _cred: git2::CredentialType,
-) -> Result<git2::Cred, git2::Error> {
-    let user = _user_from_url.unwrap_or("git");
+fn get_git_credentials_callback(
+    remote : &String
+) -> impl Fn(&str, Option<&str>, git2::CredentialType) -> Result<git2::Cred, git2::Error>
+{
+    let url : Url = remote.parse().unwrap();
+    let host = String::from(url.host_str().unwrap());
 
-    if _cred.contains(git2::CredentialType::USERNAME) {
-        return git2::Cred::username(user);
+    move |_user: &str, _user_from_url: Option<&str>, _cred: git2::CredentialType| -> Result<git2::Cred, git2::Error> {
+        let user = _user_from_url.unwrap_or("git");
+
+        if _cred.contains(git2::CredentialType::USERNAME) {
+            return git2::Cred::username(user);
+        }
+
+        let (key, passphrase) = get_ssh_key_and_passphrase(&host)?;
+        let (has_pass, passphrase) = match passphrase {
+            Some(p) => (true, p),
+            None => (false, String::new()),
+        };
+
+        git2::Cred::ssh_key(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
     }
-
-    let (key, passphrase) = get_ssh_key_and_passphrase()?;
-    let (has_pass, passphrase) = match passphrase {
-        Some(p) => (true, p),
-        None => (false, String::new()),
-    };
-
-    git2::Cred::ssh_key_from_memory(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
 }
 
 fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
@@ -597,7 +686,7 @@ fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), Comma
     };
 
     let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(git_credentials_callback);
+    callbacks.credentials(get_git_credentials_callback(remote));
 
     let mut opts = git2::FetchOptions::new();
     opts.remote_callbacks(callbacks);
@@ -677,6 +766,16 @@ fn parse_package_uri(url_or_refspec : &String) -> Result<(Option<String>, String
 
 fn main() {
     pretty_env_logger::init_custom_env("GPM_LOG");
+
+    // match find_ssh_key_for_host(&String::from("git.aerys.in")) {
+    //     Ok(path) => match path {
+    //         Some(path) => println!("{}", path.display()),
+    //         None => println!("no key found"),
+    //     },
+    //     Err(e) => error!("{}", e),
+    // };
+
+    // return;
 
     let matches = App::new("gpm")
         .about("Git-based package manager.")
