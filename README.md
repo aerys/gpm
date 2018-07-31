@@ -179,12 +179,23 @@ docker run \
 
 ## 3. Authentication
 
+`gpm` will behave a lot lit `git` regarding authentication.
+
 If the repository is "public", then no authentication should be required.
 
-Otherwise, for now, only authentication through an SSH private key is supported.
-The path to that SSH private key must be set in the `GPM_SSH_KEY` environment variable.
+Otherwise, the following authentication methods are supported:
+* URL encoded HTTP basic authentication (ex: `https://username:password@host.com/repo.git`);
+* SSH public/private key.
 
-If that SSH key requires a passphrase, then:
+If URL encoded HTTP basic authentication is used, no additional authentication is required.
+Otherwise, `gpm` will assume SSH public/private key authentication is used.
+
+If SSH public/private key authentication is used:
+* if `gpm` can find the `~/.ssh/config` file, parse it and find a matching host with the `IndentityFile` option; then the corresponding
+path to the SSH private key will be used;
+* otherwise, the path to the private key *must* be set in the `GPM_SSH_KEY` environment variable.
+
+If the SSH private key requires a passphrase, then:
 * if the `GPM_SSH_PASS` environment variable is set/not empty, it is used as the passphrase;
 * otherwise, `gpm` will prompt the user to type his passphrase.
 
