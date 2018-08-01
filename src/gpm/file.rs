@@ -12,6 +12,9 @@ extern crate tempfile;
 
 extern crate flate2;
 
+extern crate indicatif;
+use indicatif::{ProgressBar, ProgressStyle};
+
 #[derive(Debug)]
 pub struct FileProgressWriter<F : Fn(usize, usize)> {
     file : fs::File,
@@ -79,6 +82,12 @@ pub fn extract_package(
 ) -> Result<(u32, u32), io::Error> {
     debug!("attempting to extract package archive {} in {}", path.display(), prefix.display());
 
+    let pb = ProgressBar::new(0);
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} [{elapsed_precise}] {wide_msg}"));
+    pb.set_message("decompressing archive...");
+    pb.enable_steady_tick(200);
+
     let compressed_file = fs::File::open(&path)?;
     let mut file = tempfile::tempfile().unwrap();
 
@@ -94,6 +103,8 @@ pub fn extract_package(
         debug!("{} decoded", path.display());
     }
 
+    pb.finish_with_message("archive decompressed");
+
     debug!("start extracting archive into {}", prefix.display());
 
     file.seek(io::SeekFrom::Start(0))?;
@@ -101,9 +112,16 @@ pub fn extract_package(
     let mut num_extracted_files = 0;
     let mut num_files = 0;
     let reader = io::BufReader::new(&file);
-
     let mut ar = Archive::new(reader);
-    for file in ar.entries().unwrap() {
+    let entries = ar.entries().unwrap();
+
+    let pb = ProgressBar::new(num_files as u64);
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} [{elapsed_precise}] {pos} {wide_msg}"));
+    pb.set_message("extracted files");
+    pb.enable_steady_tick(200);
+
+    for file in entries {
         let mut file = file.unwrap();
         let path = prefix.to_owned().join(file.path().unwrap());
 
@@ -135,9 +153,15 @@ pub fn extract_package(
         );
 
         num_extracted_files += 1;
+
+        pb.inc(1);
     }
 
-    info!("extracted {}/{} file(s)", num_extracted_files, num_files);
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} [{elapsed_precise}] {wide_msg}"));
+    pb.finish_with_message(&format!("{}/{} extracted file(s)", num_extracted_files, num_files));
+
+    // info!("extracted {}/{} file(s)", num_extracted_files, num_files);
 
     Ok((num_files, num_extracted_files))
 }

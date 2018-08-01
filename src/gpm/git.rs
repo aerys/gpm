@@ -9,6 +9,9 @@ use git2;
 use gpm;
 use gpm::error::CommandError;
 
+extern crate indicatif;
+use indicatif::{ProgressBar, ProgressStyle};
+
 extern crate url;
 use url::{Url};
 
@@ -180,14 +183,29 @@ pub fn find_repo_by_package_and_revision(
     let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
     let file = fs::File::open(source_file_path)?;
+    let mut remotes = Vec::new();
 
     for line in io::BufReader::new(file).lines() {
         let line = String::from(line.unwrap().trim());
 
-        debug!("searching for revision {} in repository {}", revision, line);
+        remotes.push(line);
+    }
 
-        let path = gpm::git::remote_url_to_cache_path(&line)?;
+    let pb = ProgressBar::new(remotes.len() as u64);
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} [{elapsed_precise}] ({pos}/{len}) {wide_msg}"));
+    pb.set_message(&format!("looking for {} at revision {}", &package, &revision));
+    pb.set_position(0);
+    pb.enable_steady_tick(200);
+
+    for remote in remotes {
+        debug!("searching for revision {} in repository {}", revision, remote);
+
+        let path = gpm::git::remote_url_to_cache_path(&remote)?;
         let repo = git2::Repository::open(path).map_err(CommandError::Git)?;
+
+        pb.inc(1);
+        pb.set_message(&format!("looking for {}={} in {}", &package, &revision, &remote));
 
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
@@ -205,6 +223,7 @@ pub fn find_repo_by_package_and_revision(
 
                 if package_archive_is_in_repo(&repo, package) {
                     debug!("package archive {}.tar.gz found in refspec {}", package, &refspec);
+                    pb.finish_with_message(&format!("found {}={} (={}) in {}", &package, &revision, &refspec, &remote));
                     return Ok(Some((repo, refspec)));
                 } else {
                     debug!("package archive {}.tar.gz cound not be found in refspec {}, skipping to next repository", package, &refspec);

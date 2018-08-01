@@ -69,6 +69,7 @@ fn update_command() -> Result<bool, CommandError> {
     let file = fs::File::open(source_file_path)?;
     let mut num_repos = 0;
     let mut num_updated = 0;
+    let mut repos : Vec<String> = Vec::new();
 
     for line in io::BufReader::new(file).lines() {
         let line = String::from(line.unwrap().trim());
@@ -79,14 +80,25 @@ fn update_command() -> Result<bool, CommandError> {
 
         num_repos += 1;
 
-        info!("updating repository {}", line);
+        repos.push(line);
+    }
 
-        match gpm::git::get_or_clone_repo(&line) {
+    let pb = ProgressBar::new(repos.len() as u64);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {pos}/{len} {wide_msg}")
+        .progress_chars("#>-"));
+    for remote in repos {
+        info!("updating repository {}", remote);
+
+        pb.set_message(&format!("updating {}", &remote));
+        pb.set_position(num_updated as u64);
+
+        match gpm::git::get_or_clone_repo(&remote) {
             Ok((repo, _is_new_repo)) => {
                 match gpm::git::pull_repo(&repo) {
                     Ok(()) => {
                         num_updated += 1;
-                        info!("updated repository {}", line);
+                        info!("updated repository {}", remote);
                     },
                     Err(e) => {
                         warn!("could not update repository: {}", e);
@@ -98,6 +110,8 @@ fn update_command() -> Result<bool, CommandError> {
             }
         }
     }
+
+    pb.finish_with_message("updated repositories");
 
     if num_updated > 1 {
         info!("updated {}/{} repositories", num_updated, num_repos);
@@ -161,8 +175,10 @@ fn download_command(
             .expect("unable to open LFS object target file");
         let pb = ProgressBar::new(size as u64);
         pb.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}){wide_msg}")
             .progress_chars("#>-"));
+        pb.enable_steady_tick(200); 
+        pb.set_message(&format!("downloading {}={}", &package, &refspec));       
         let mut progress = gpm::file::FileProgressWriter::new(
             file,
             size,
@@ -173,12 +189,14 @@ fn download_command(
 
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
-            Some(refspec),
+            Some(refspec.clone()),
             &package_path,
             &mut progress,
             Some(key),
             passphrase,
         ).map_err(CommandError::IO)?;
+
+        pb.finish_with_message(&format!("downloaded {}={}", &package, &refspec));
     } else {
         fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
     }
@@ -238,8 +256,10 @@ fn install_command(
             .expect("unable to open LFS object target file");
         let pb = ProgressBar::new(size as u64);
         pb.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
             .progress_chars("#>-"));
+        pb.enable_steady_tick(200);
+        pb.set_message(&format!("downloading {}={}", &package, &refspec));
         let mut progress = gpm::file::FileProgressWriter::new(
             file,
             size,
@@ -250,12 +270,14 @@ fn install_command(
         
         lfs::resolve_lfs_link(
             remote.parse().unwrap(),
-            Some(refspec),
+            Some(refspec.clone()),
             &package_path,
             &mut progress,
             Some(key),
             passphrase,
         ).map_err(CommandError::IO)?;
+
+        pb.finish_with_message(&format!("downloaded {}={}", &package, &refspec));
         
         gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
     } else {

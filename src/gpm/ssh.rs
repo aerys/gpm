@@ -7,6 +7,8 @@ use git2;
 
 extern crate regex;
 
+extern crate term;
+
 extern crate rpassword;
 
 use std::io::prelude::*;
@@ -138,9 +140,16 @@ pub fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) ->
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
             Err(_) => {
+                let mut t = term::stderr().unwrap();
+
                 trace!("prompt for passphrase");
-                let pass_string = rpassword::prompt_password_stdout(passphrase_prompt.as_str())
+                let pass_string = rpassword::prompt_password_stderr(passphrase_prompt.as_str())
                     .unwrap();
+
+                t.carriage_return().unwrap();
+                t.delete_line().unwrap();
+                t.cursor_up().unwrap();
+                t.delete_line().unwrap();
 
                 trace!("passphrase fetched from command line");
 
