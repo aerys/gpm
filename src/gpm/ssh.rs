@@ -146,7 +146,6 @@ pub fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) ->
                 let pass_string = rpassword::prompt_password_stderr(passphrase_prompt.as_str())
                     .unwrap();
 
-                t.carriage_return().unwrap();
                 t.delete_line().unwrap();
                 t.cursor_up().unwrap();
                 t.delete_line().unwrap();
