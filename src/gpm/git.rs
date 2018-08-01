@@ -29,10 +29,15 @@ pub fn get_git_credentials_callback(
             return git2::Cred::username(user);
         }
 
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host)?;
+        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host);
         let (has_pass, passphrase) = match passphrase {
             Some(p) => (true, p),
             None => (false, String::new()),
+        };
+
+        let key = match key {
+            Some(k) => k,
+            None => panic!("failed authentication for repository {}", &host),
         };
 
         git2::Cred::ssh_key(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })

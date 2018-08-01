@@ -91,12 +91,12 @@ fn update_command() -> Result<bool, CommandError> {
         info!("updating repository {}", remote);
 
         pb.set_message(&format!("updating {}", &remote));
-        pb.set_position(num_updated as u64);
 
         match gpm::git::get_or_clone_repo(&remote) {
             Ok((repo, _is_new_repo)) => {
                 match gpm::git::pull_repo(&repo) {
                     Ok(()) => {
+                        pb.inc(1);
                         num_updated += 1;
                         info!("updated repository {}", remote);
                     },
@@ -166,7 +166,7 @@ fn download_command(
         info!("start downloading archive {} from LFS", package_filename);
 
         let uri : Url = remote.parse().unwrap();
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()))?;
+        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
         let file = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -192,7 +192,7 @@ fn download_command(
             Some(refspec.clone()),
             &package_path,
             &mut progress,
-            Some(key),
+            key,
             passphrase,
         ).map_err(CommandError::IO)?;
 
@@ -247,7 +247,7 @@ fn install_command(
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
         let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
         let uri : Url = remote.parse().unwrap();
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()))?;
+        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -273,7 +273,7 @@ fn install_command(
             Some(refspec.clone()),
             &package_path,
             &mut progress,
-            Some(key),
+            key,
             passphrase,
         ).map_err(CommandError::IO)?;
 
