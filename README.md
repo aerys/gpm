@@ -325,8 +325,6 @@ You can then install packages using their refspec.
 
 ## 8. Logging
 
-By default, `gpm` will echo *nothing* on stdout.
-
 Logs can be enable by setting the `GPM_LOG` environment variable to one of the following values:
 
 * `trace`
