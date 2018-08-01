@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "gpm"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "flate2 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
