@@ -3,8 +3,6 @@ use std::path;
 use std::io;
 use std::fs;
 
-use git2;
-
 extern crate regex;
 
 extern crate term;
@@ -95,7 +93,7 @@ pub fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
     return false;
 }
 
-pub fn get_ssh_key_and_passphrase(host : &String) -> Result<(path::PathBuf, Option<String>), git2::Error> {
+pub fn get_ssh_key_and_passphrase(host : &String) -> (Option<path::PathBuf>, Option<String>) {
     let key_path = match find_ssh_key_for_host(host) {
         Ok(path) => path,
         Err(e) => {
@@ -124,13 +122,15 @@ pub fn get_ssh_key_and_passphrase(host : &String) -> Result<(path::PathBuf, Opti
 
             let mut f = io::BufReader::new(f);
 
-            Ok((
-                key_path.to_owned(),
+            (
+                Some(key_path.to_owned()),
                 get_ssh_passphrase(&mut f, format!("Enter passphrase for key {:?}: ", key_path))
-            ))
+            )
         },
         None => {
-            Err(git2::Error::from_str("unable to get private key"))
+            warn!("unable to get private key for host {}", &host);
+
+            (None, None)
         }
     }
 }
