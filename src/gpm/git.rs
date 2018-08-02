@@ -198,8 +198,7 @@ pub fn find_repo_by_package_and_revision(
 
     let pb = ProgressBar::new(remotes.len() as u64);
     pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} [{elapsed_precise}] ({pos}/{len}) {wide_msg}"));
-    pb.set_message(&format!("looking for {} at revision {}", &package, &revision));
+        .template("{spinner:.green} [{elapsed_precise}] ({pos}/{len}) {msg}"));
     pb.set_position(0);
     pb.enable_steady_tick(200);
 
@@ -210,7 +209,7 @@ pub fn find_repo_by_package_and_revision(
         let repo = git2::Repository::open(path).map_err(CommandError::Git)?;
 
         pb.inc(1);
-        pb.set_message(&format!("looking for {}={} in {}", &package, &revision, &remote));
+        pb.set_message(&remote);
 
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
@@ -228,7 +227,15 @@ pub fn find_repo_by_package_and_revision(
 
                 if package_archive_is_in_repo(&repo, package) {
                     debug!("package archive {}.tar.gz found in refspec {}", package, &refspec);
-                    pb.finish_with_message(&format!("found {}={} (={}) in {}", &package, &revision, &refspec, &remote));
+
+                    pb.finish_with_message(&format!(
+                        "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
+                        gpm::style::package_name(&package),
+                        gpm::style::package_extension(&String::from(".tar.gz")),
+                        gpm::style::remote_url(&remote),
+                        gpm::style::refspec(&refspec),
+                    ));
+
                     return Ok(Some((repo, refspec)));
                 } else {
                     debug!("package archive {}.tar.gz cound not be found in refspec {}, skipping to next repository", package, &refspec);

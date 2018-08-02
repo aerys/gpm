@@ -5,7 +5,7 @@ use std::fs;
 
 extern crate regex;
 
-extern crate term;
+extern crate console;
 
 extern crate rpassword;
 
@@ -140,15 +140,13 @@ pub fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) ->
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
             Err(_) => {
-                let mut t = term::stderr().unwrap();
+                let mut t = console::Term::stderr();
 
                 trace!("prompt for passphrase");
                 let pass_string = rpassword::prompt_password_stderr(passphrase_prompt.as_str())
                     .unwrap();
 
-                t.delete_line().unwrap();
-                t.cursor_up().unwrap();
-                t.delete_line().unwrap();
+                t.clear_last_lines(1).unwrap();
 
                 trace!("passphrase fetched from command line");
 
