@@ -85,7 +85,7 @@ pub fn extract_package(
     let pb = ProgressBar::new(0);
     pb.set_style(ProgressStyle::default_spinner()
         .template("{spinner:.green} [{elapsed_precise}] {wide_msg}"));
-    pb.set_message("decompressing archive...");
+    pb.set_message("Decompressing archive...");
     pb.enable_steady_tick(200);
 
     let compressed_file = fs::File::open(&path)?;
@@ -103,7 +103,7 @@ pub fn extract_package(
         debug!("{} decoded", path.display());
     }
 
-    pb.finish_with_message("archive decompressed");
+    pb.finish_with_message("Archive decompressed");
 
     debug!("start extracting archive into {}", prefix.display());
 

@@ -34,6 +34,9 @@ use tempfile::tempdir;
 mod gpm;
 use gpm::error::CommandError;
 
+extern crate console;
+use console::style;
+
 extern crate regex;
 
 fn clean_command() -> Result<bool, CommandError> {
@@ -56,6 +59,11 @@ fn clean_command() -> Result<bool, CommandError> {
 
 fn update_command() -> Result<bool, CommandError> {
     info!("running the \"update\" command");
+
+    println!(
+        "{} all repositories",
+        gpm::style::command(&String::from("Updating")),
+    );
 
     let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
@@ -119,7 +127,13 @@ fn update_command() -> Result<bool, CommandError> {
         info!("updated {}/{} repository", num_updated, num_repos);
     }
 
-    Ok(num_updated > 0)
+    let success = num_updated == num_repos;
+
+    if success {
+        println!("{}", style("Done!").green());
+    }
+
+    Ok(success)
 }
 
 fn download_command(
@@ -129,6 +143,18 @@ fn download_command(
     force : bool,
 ) -> Result<bool, CommandError> {
     info!("running the \"download\" command for package {} at revision {}", package, revision);
+
+    println!(
+        "{} package {} at revision {}",
+        gpm::style::command(&String::from("Downloading")),
+        gpm::style::package_name(&package),
+        gpm::style::revision(&revision),
+    );
+
+    println!(
+        "{} Resolving package",
+        style("[1/2]").bold().dim(),
+    );
 
     let (repo, refspec) = match gpm::git::find_or_init_repo(remote, package, revision)? {
         Some(repo) => repo,
@@ -164,6 +190,11 @@ fn download_command(
         let size = size.parse::<usize>().unwrap();
     
         info!("start downloading archive {} from LFS", package_filename);
+
+        println!(
+            "{} Downloading package",
+            style("[2/2]").bold().dim(),
+        );
 
         let uri : Url = remote.parse().unwrap();
         let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
@@ -203,6 +234,8 @@ fn download_command(
 
     // ? FIXME: reset back to HEAD?
 
+    println!("{}", style("Done!").green());
+
     Ok(true)
 }
 
@@ -215,7 +248,17 @@ fn install_command(
 ) -> Result<bool, CommandError> {
     info!("running the \"install\" command for package {} at revision {}", package, revision);
 
-    // ! FIXME: search in all repos if there is no remote provided
+    println!(
+        "{} package {} at revision {}",
+        gpm::style::command(&String::from("Installing")),
+        gpm::style::package_name(&package),
+        gpm::style::revision(&revision),
+    );
+
+    println!(
+        "{} Resolving package",
+        style("[1/3]").bold().dim(),
+    );
 
     let (repo, refspec) = match gpm::git::find_or_init_repo(remote, package, revision)? {
         Some(repo) => repo,
@@ -242,6 +285,8 @@ fn install_command(
         let (_oid, size) = parsed_lfs_link_data.unwrap().unwrap();
         let size = size.parse::<usize>().unwrap();
 
+        println!("{} Downloading package", style("[2/3]").bold().dim());
+
         info!("start downloading archive {} from LFS", package_filename);
 
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
@@ -259,7 +304,6 @@ fn install_command(
             .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
             .progress_chars("#>-"));
         pb.enable_steady_tick(200);
-        pb.set_message(&format!("downloading {}={}", &package, &refspec));
         let mut progress = gpm::file::FileProgressWriter::new(
             file,
             size,
@@ -277,11 +321,23 @@ fn install_command(
             passphrase,
         ).map_err(CommandError::IO)?;
 
-        pb.finish_with_message(&format!("downloaded {}={}", &package, &refspec));
+        pb.finish_with_message("downloaded");
         
+        println!(
+            "{} Extracting package in {:?}",
+            style("[3/3]").bold().dim(),
+            prefix,
+        );
+
         gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
     } else {
         warn!("package {} does not use LFS", package);
+
+        println!(
+            "{} Extracting package in {:?}",
+            style("[3/3]").bold().dim(),
+            prefix,
+        );
 
         gpm::file::extract_package(&package_path, &prefix, force).map_err(CommandError::IO)?
     };
@@ -291,6 +347,10 @@ fn install_command(
     }
 
     // ? FIXME: reset back to HEAD?
+
+    if extracted != 0 {
+        println!("{}", style("Done!").green());
+    }
 
     Ok(extracted != 0)
 }
