@@ -5,6 +5,8 @@
 
 A statically linked, native, platform agnostic Git-based package manager written in Rust.
 
+![demo](./demo.gif)
+
 <!-- TOC depthFrom:2 -->
 
 - [1. Getting started](#1-getting-started)
