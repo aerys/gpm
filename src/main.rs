@@ -295,6 +295,7 @@ fn install_command(
         let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
         let mut file = fs::OpenOptions::new()
             .write(true)
+            .read(true)
             .create(true)
             .truncate(true)
             .open(&tmp_package_path)
