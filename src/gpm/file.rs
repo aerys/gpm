@@ -47,6 +47,17 @@ impl<F : Fn(usize, usize)> io::Write for FileProgressWriter<F> {
     }
 }
 
+impl<F : Fn(usize, usize)> io::Read for FileProgressWriter<F> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.file.read(buf)
+    }
+}
+
+impl<F : Fn(usize, usize)> io::Seek for FileProgressWriter<F> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.file.seek(pos)
+    }
+}
 
 pub fn get_or_init_dot_gpm_dir() -> Result<path::PathBuf, io::Error> {
     let dot_gpm = env::home_dir().unwrap().join(".gpm");

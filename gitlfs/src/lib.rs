@@ -12,6 +12,8 @@ extern crate ssh2;
 
 extern crate url;
 
+extern crate crypto_hash;
+
 pub mod lfs {
     use json;
 
@@ -28,6 +30,34 @@ pub mod lfs {
     use std::path;
     use std::io;
     use std::fs;
+
+    use crypto_hash::{Hasher, Algorithm};
+
+    pub fn get_oid<R: Read + Seek>(p : &mut R) -> String {
+        p.seek(io::SeekFrom::Start(0)).unwrap();
+
+        let mut hasher = Hasher::new(Algorithm::SHA256);
+        let mut reader = io::BufReader::with_capacity(1024 * 10, p);
+
+        loop {
+            let length = {
+                let buffer = reader.fill_buf().unwrap();
+
+                hasher.write_all(buffer).unwrap();
+
+                buffer.len()
+            };
+
+            if length == 0 {
+                break;
+            }
+
+            reader.consume(length);
+        }
+
+        hasher.finish().into_iter()
+            .fold(String::new(), |s : String, i| { s + format!("{:02x}", i).as_str() })
+    }
 
     pub fn parse_lfs_link_file(p : &path::Path) -> Result<Option<(String, String)>, io::Error> {
         debug!("attempting to match {} as an LFS link", p.to_str().unwrap());
@@ -135,7 +165,7 @@ pub mod lfs {
         Ok((auth_token, url))
     }
 
-    pub fn resolve_lfs_link<W: Write>(
+    pub fn resolve_lfs_link<W: Write + Read + Seek>(
         repository : Url,
         refspec : Option<String>,
         p : &path::Path, 
@@ -157,7 +187,17 @@ pub mod lfs {
         };
 
         match download_lfs_object(target, auth_token, &url) {
-            Ok(()) => Ok(true),
+            Ok(()) => {
+                let target_oid = get_oid(target);
+
+                if target_oid == oid {
+                    Ok(true)
+                } else {
+                    error!("invalid signature: expected {}, got {}", oid, target_oid);
+
+                    panic!("invalid archive signature")
+                }
+            },
             Err(e) => panic!("failed to donwload LFS object: {}", e),
         }
     }
