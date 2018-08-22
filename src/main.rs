@@ -196,8 +196,14 @@ fn download_command(
             style("[2/2]").bold().dim(),
         );
 
-        let uri : Url = remote.parse().unwrap();
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
+        let remote_url : Url = remote.parse().unwrap();
+        // If we have a username/password in the remote URL, we assume we can use
+        // HTTP basic auth and we don't even try to find SSH credentials.
+        let (key, passphrase) = if remote_url.username() != "" && remote_url.password().is_some() {
+            (None, None)
+        } else {
+            gpm::ssh::get_ssh_key_and_passphrase(&String::from(remote_url.host_str().unwrap()))
+        };
         let file = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -291,8 +297,14 @@ fn install_command(
 
         let tmp_dir = tempdir().map_err(CommandError::IO)?;
         let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
-        let uri : Url = remote.parse().unwrap();
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&String::from(uri.host_str().unwrap()));
+        let remote_url : Url = remote.parse().unwrap();
+        // If we have a username/password in the remote URL, we assume we can use
+        // HTTP basic auth and we don't even try to find SSH credentials.
+        let (key, passphrase) = if remote_url.username() != "" && remote_url.password().is_some() {
+            (None, None)
+        } else {
+            gpm::ssh::get_ssh_key_and_passphrase(&String::from(remote_url.host_str().unwrap()))
+        };
         let mut file = fs::OpenOptions::new()
             .write(true)
             .read(true)
@@ -356,32 +368,18 @@ fn install_command(
     Ok(extracted != 0)
 }
 
-fn default_port(url: &Url) -> Result<u16, ()> {
-    match url.scheme() {
-        "ssh" => Ok(22),
-        "git" => Ok(9418),
-        "git+ssh" => Ok(22),
-        "git+https" => Ok(443),
-        "git+http" => Ok(80),
-        _ => Err(()),
-    }
-}
-
 fn parse_package_uri(url_or_refspec : &String) -> Result<(Option<String>, String, String), url::ParseError> {
     let url = url_or_refspec.parse();
 
     if url.is_ok() {
         let url : Url = url.unwrap();
         let package_and_revision : Vec<&str> = url.fragment().unwrap().split("/").collect();
-        let repository = format!(
-            "{}://{}{}",
-            url.scheme(),
-            url.with_default_port(default_port).unwrap(),
-            url.path(),
-        );
+        let mut remote = url.clone();
+
+        remote.set_fragment(None);
 
         return Ok((
-            Some(repository),
+            Some(String::from(remote.as_str())),
             String::from(package_and_revision[0]),
             String::from(package_and_revision[1])
         ));

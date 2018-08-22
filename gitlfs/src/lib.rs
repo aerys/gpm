@@ -127,6 +127,12 @@ pub mod lfs {
             .header(Accept(vec![qitem("application/vnd.git-lfs+json".parse().unwrap())]))
             .header(ContentType("application/vnd.git-lfs+json".parse().unwrap()));
 
+        // Having the username/password in the URL is not enough.
+        // We must enable HTTP basic auth explicitely.
+        if url.username() != "" {
+            req.basic_auth(url.username(), url.password());
+        }
+
         if auth_token.is_some() {
             req.header(Authorization(auth_token.unwrap().to_owned()));
         }
@@ -136,7 +142,7 @@ pub mod lfs {
         let mut res = req.send()?;
 
         if !res.status().is_success() {
-            warn!("LFS server responded with error code: {}", res.status());
+            warn!("LFS server responded with error code {}:\n{}", res.status(), res.text().unwrap());
         }
 
         let data = json::parse(res.text().unwrap().as_str())
@@ -203,7 +209,12 @@ pub mod lfs {
     }
 
     pub fn guess_lfs_url(repository : Url) -> String {
-        format!("https://{}{}/info/lfs", repository.host_str().unwrap(), repository.path())
+        let mut repository = repository;
+
+        repository.set_scheme("https").unwrap();
+        repository.set_port(None).unwrap();
+
+        format!("{}/info/lfs", repository.as_str())
     }
 
     // https://github.com/git-lfs/git-lfs/blob/master/docs/api/authentication.md
@@ -269,7 +280,8 @@ pub mod lfs {
                         return Ok((
                             Some(String::from(json["header"]["Authorization"].as_str().unwrap())),
                             String::from(json["href"].as_str().unwrap()),
-                        ));                    },
+                        ));
+                    },
                     Err(e) => {
                         warn!("failed to authenticate with SSH key: {}", e);
                         warn!("continue without authentication");
