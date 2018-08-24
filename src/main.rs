@@ -490,11 +490,16 @@ fn main() {
         let prefix = path::Path::new(matches.value_of("prefix").unwrap());
 
         if !prefix.exists() {
-            error!("path {} (passed via --prefix) does not exist", prefix.to_str().unwrap());
-            std::process::exit(1);
+            if !force {
+                error!("path {:?} (passed via --prefix) does not exist", prefix);
+                std::process::exit(1);
+            } else {
+                debug!("--force is used: creating missing path {:?}", prefix);
+                fs::create_dir_all(prefix).expect("unable to create directory");
+            }
         }
         if !prefix.is_dir() {
-            error!("path {} (passed via --prefix) is not a directory", prefix.to_str().unwrap());
+            error!("path {:?} (passed via --prefix) is not a directory", prefix);
             std::process::exit(1);
         }
 
