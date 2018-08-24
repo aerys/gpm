@@ -368,44 +368,46 @@ fn install_command(
     Ok(extracted != 0)
 }
 
-fn parse_package_uri(url_or_refspec : &String) -> Result<(Option<String>, String, String), url::ParseError> {
-    let url = url_or_refspec.parse();
+fn parse_package_ref(package_ref : &String) -> (Option<String>, String, String) {
+    let url = package_ref.parse();
 
     if url.is_ok() {
         let url : Url = url.unwrap();
-        let package_and_revision : Vec<&str> = url.fragment().unwrap().split("/").collect();
+        let package_and_version = String::from(url.fragment().unwrap());
+        let (_, package, version) = parse_package_ref(&package_and_version);
         let mut remote = url.clone();
 
         remote.set_fragment(None);
 
-        return Ok((
+        return (
             Some(String::from(remote.as_str())),
-            String::from(package_and_revision[0]),
-            String::from(package_and_revision[1])
-        ));
+            package,
+            version,
+        );
+
+    } else {
+        if package_ref.contains("=") {
+            let parts : Vec<&str> = package_ref.split("=").collect();
+
+            return (
+                None,
+                parts[0].to_string(),
+                parts[1].to_string(),
+            );
+        }
+
+        if package_ref.contains("/") {
+            let parts : Vec<&str> = package_ref.split("/").collect();
+
+            return (
+                None,
+                parts[0].to_string(),
+                package_ref.to_owned(),
+            );
+        }
+
+        (None, package_ref.to_owned(), String::from("refs/heads/master"))
     }
-
-    if url_or_refspec.contains("=") {
-        let parts : Vec<&str> = url_or_refspec.split("=").collect();
-
-        return Ok((
-            None,
-            parts[0].to_string(),
-            parts[1].to_string(),
-        ))
-    }
-
-    if url_or_refspec.contains("/") {
-        let parts : Vec<&str> = url_or_refspec.split("/").collect();
-
-        return Ok((
-            None,
-            parts[0].to_string(),
-            url_or_refspec.to_owned(),
-        ));
-    }
-
-    Ok((None, url_or_refspec.to_owned(), String::from("refs/heads/master")))
 }
 
 fn main() {
@@ -497,8 +499,7 @@ fn main() {
         }
 
         let package = String::from(matches.value_of("package").unwrap());
-        let (repo, package, revision) = parse_package_uri(&package)
-            .expect("unable to parse package URI");
+        let (repo, package, revision) = parse_package_ref(&package);
 
         if repo.is_some() {
             debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
@@ -523,8 +524,7 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("download") {
         let force = matches.is_present("force");
         let package = String::from(matches.value_of("package").unwrap());
-        let (repo, package, revision) = parse_package_uri(&package)
-            .expect("unable to parse package URI");
+        let (repo, package, revision) = parse_package_ref(&package);
 
         if repo.is_some() {
             debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
