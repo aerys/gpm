@@ -17,20 +17,20 @@ use pest::Parser;
 #[grammar = "gpm/ssh_config.pest"]
 pub struct SSHConfigParser;
 
-pub fn find_ssh_key_for_host(host : &String) -> Result<Option<path::PathBuf>, io::Error> {
+pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf>, io::Error> {
     match env::home_dir() {
-        Some(path) => {
-            let mut path = path::PathBuf::from(path);
+        Some(home_path) => {
+            let mut ssh_config_path = path::PathBuf::from(home_path);
 
-            path.push(".ssh");
-            path.push("config");
+            ssh_config_path.push(".ssh");
+            ssh_config_path.push("config");
 
-            let mut f = fs::File::open(path.to_owned())?;
+            let mut f = fs::File::open(ssh_config_path.to_owned())?;
             let mut contents = String::new();
 
             f.read_to_string(&mut contents)?;
 
-            trace!("parsing {:?} to find host {}", path, host);
+            trace!("parsing {:?} to find host {}", ssh_config_path, host);
 
             let pairs = SSHConfigParser::parse(Rule::config, &contents)
                 .unwrap_or_else(|e| panic!("{}", e));
@@ -83,6 +83,38 @@ pub fn find_ssh_key_for_host(host : &String) -> Result<Option<path::PathBuf>, io
     }
 }
 
+pub fn find_default_ssh_key() -> Option<path::PathBuf> {
+    match env::home_dir() {
+        Some(home_path) => {
+            let mut id_rsa_path = path::PathBuf::from(home_path);
+
+            id_rsa_path.push(".ssh");
+            id_rsa_path.push("id_rsa");
+
+            if id_rsa_path.exists() && id_rsa_path.is_file() {
+                Some(id_rsa_path)
+            } else {
+                None
+            }
+        },
+        None => None
+    }
+}
+
+pub fn find_ssh_key_for_host(host : &String) -> Option<path::PathBuf> {
+    match find_ssh_key_in_ssh_config(host) {
+        Ok(path) => match path {
+            Some(_) => path,
+            None => find_default_ssh_key(),
+        },
+        Err(e) => {
+            warn!("Unable to get SSH key from ~/.ssh/config: {}", e);
+
+            find_default_ssh_key()
+        },
+    }
+}
+
 pub fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
     for line in buf.lines() {
         if line.unwrap().contains("ENCRYPTED") {
@@ -94,23 +126,30 @@ pub fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
 }
 
 pub fn get_ssh_key_and_passphrase(host : &String) -> (Option<path::PathBuf>, Option<String>) {
-    let key_path = match find_ssh_key_for_host(host) {
-        Ok(path) => path,
-        Err(e) => {
-            warn!("could not find private key path from ~/.ssh/config: {}", e);
 
-            match env::var("GPM_SSH_KEY") {
-                Ok(k) => Some(path::PathBuf::from(k)),
-                Err(e) => {
-                    warn!("could not read the GPM_SSH_KEY environment variable: {}", e);
+    let key = match env::var("GPM_SSH_KEY") {
+        Ok(k) => {
+            let path = path::PathBuf::from(k);
 
-                    None
-                }
+            if path.exists() && path.is_file() {
+                Some(path)
+            } else {
+                warn!(
+                    "Ignoring the GPM_SSH_KEY environment variable: {:?} does not exist or is not a file.",
+                    path
+                );
+
+                find_ssh_key_for_host(host)
             }
         },
+        Err(e) => {
+            warn!("could not read the GPM_SSH_KEY environment variable: {}", e);
+
+            find_ssh_key_for_host(host)
+        }
     };
 
-    match key_path {
+    match key {
         Some(key_path) => {
             debug!("authenticate with private key located in {:?}", key_path);
 
