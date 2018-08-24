@@ -193,9 +193,11 @@ If URL encoded HTTP basic authentication is used, no additional authentication i
 Otherwise, `gpm` will assume SSH public/private key authentication is used.
 
 If SSH public/private key authentication is used:
-* if `gpm` can find the `~/.ssh/config` file, parse it and find a matching host with the `IndentityFile` option; then the corresponding
+* if the `GPM_SSH_KEY` environment variable is set to a path that exists/is a file, then its value is used as the path to the SSH private key;
+* otherwise, if `gpm` can find the `~/.ssh/config` file, parse it and find a matching host with the `IndentityFile` option; then the corresponding
 path to the SSH private key will be used;
-* otherwise, the path to the private key *must* be set in the `GPM_SSH_KEY` environment variable.
+* otherwise, if `gpm` can find the `~/.ssh/id_rsa` file, it is used as the SSH private key;
+* otherwise, `gpm` will continue without authentication.
 
 If the SSH private key requires a passphrase, then:
 * if the `GPM_SSH_PASS` environment variable is set/not empty, it is used as the passphrase;
