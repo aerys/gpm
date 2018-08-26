@@ -4,8 +4,11 @@ version = "0.8.0"
 authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 
 [profile.release]
+panic = "abort"
 lto = true
-panic = 'abort'
+codegen-units = 1
+incremental = false
+opt-level = "z"
 
 [dependencies.gitlfs]
 path = "./gitlfs"

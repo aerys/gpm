@@ -25,6 +25,7 @@ case `uname -s` in
         docker rm build-"$1"
         docker rmi build-"$1"-image
         strip "$1"
+        docker run --rm -w $PWD -v $PWD:$PWD aerysinnovation/upx:latest --best --lzma "$1"
         ;;
     *)
         echo "Building standard release binaries"
