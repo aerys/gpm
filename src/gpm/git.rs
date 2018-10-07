@@ -15,6 +15,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 extern crate url;
 use url::{Url};
 
+extern crate crypto_hash;
+use self::crypto_hash::{Hasher, Algorithm};
+
 pub fn get_git_credentials_callback(
     remote : &String
 ) -> impl Fn(&str, Option<&str>, git2::CredentialType) -> Result<git2::Cred, git2::Error>
@@ -112,15 +115,19 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
 
 pub fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
     let cache = gpm::file::get_or_init_cache_dir().map_err(CommandError::IO)?;
-    let data_url = match Url::parse(remote) {
-        Ok(data_url) => data_url,
-        Err(e) => panic!("failed to parse remote url: {}", e),
+    let hash = {
+        let mut hasher = Hasher::new(Algorithm::SHA256);
+
+        hasher.write(remote.as_bytes()).unwrap();
+
+        hasher.finish()
+            .into_iter()
+            .fold(String::new(), |s : String, i| { s + format!("{:02x}", i).as_str() })
     };
 
     let mut path = path::PathBuf::new();
     path.push(cache);
-    path.push(data_url.host_str().unwrap());
-    path.push(&data_url.path()[1..]);
+    path.push(hash);
 
     Ok(path)
 }
