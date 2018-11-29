@@ -138,7 +138,7 @@ pub fn revision_to_refspec(
     revision : &String,
 ) -> Option<String> {
     if repo.refname_to_id(&revision).is_ok() {
-            return Some(revision.to_owned());
+        return Some(revision.to_owned());
     }
 
     let tag_refspec = format!("refs/tags/{}", &revision);
@@ -185,6 +185,68 @@ pub fn find_or_init_repo(
 
             find_repo_by_package_and_revision(package, revision)
         },
+    }
+}
+
+fn commit_to_tag_name(repo : &git2::Repository, commit_id : &git2::Oid) -> Result<Option<String>, git2::Error> {
+    let tag_names = repo.tag_names(None)?;
+
+    for tag_name in tag_names.iter() {
+        let tag_name = tag_name.unwrap();
+        let tag = repo.find_reference(&format!("refs/tags/{}", &tag_name))?;
+        match tag.peel(git2::ObjectType::Commit) {
+            Ok(c) => if c.as_commit().unwrap().id() == *commit_id { return Ok(Some(String::from(tag_name))); },
+            _ => continue,
+        }
+    }
+
+    Ok(None)
+}
+
+fn diff_tree_has_path(path : &path::Path, repo : &git2::Repository, tree : &git2::Tree) -> bool {
+    let mut found = false;
+    let mut found_binary = false;
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&tree), None).unwrap();
+    // iterate over all the changes in the diff
+    diff.foreach(&mut |a, _| {
+        // when using LFS, the changed file is *not* a binary file
+        if a.new_file().path().unwrap() == path {
+            found = true;
+        }
+        true
+    } , Some(&mut |a, _| {
+        // when *not* using LFS, the changed file *is* a binary file
+        if a.new_file().path().unwrap() == path {
+            found_binary = true;
+        }
+        true
+    }), None, None).unwrap();
+
+    return found || found_binary;
+}
+
+pub fn find_last_commit_id(
+    path : &path::Path,
+    repo : &git2::Repository
+) -> Result<git2::Oid, git2::Error> {
+    let mut commit = repo
+        .head()?
+        .peel_to_commit()?;
+    let mut previous_commit = commit.clone();
+
+    loop {
+        let tree = commit.tree().unwrap();
+
+        if diff_tree_has_path(&path, &repo, &tree) {
+            debug!("package last modified by commit {:?}", previous_commit);
+
+            return Ok(previous_commit.id());
+        }
+
+        let parent = commit.parent(0)?;
+
+        previous_commit = commit;
+        commit = parent;
     }
 }
 
@@ -235,13 +297,29 @@ pub fn find_repo_by_package_and_revision(
                 if package_archive_is_in_repo(&repo, package) {
                     debug!("package archive {}.tar.gz found in refspec {}", package, &refspec);
 
-                    pb.finish_with_message(&format!(
-                        "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
-                        gpm::style::package_name(&package),
-                        gpm::style::package_extension(&String::from(".tar.gz")),
-                        gpm::style::remote_url(&remote),
-                        gpm::style::refspec(&refspec),
-                    ));
+                    let package_commit_id = find_last_commit_id(
+                        &path::Path::new(&format!("{}/{}.tar.gz", &package, &package)),
+                        &repo,
+                    ).map_err(CommandError::Git)?;
+
+                    match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
+                        Some(tag_name) => pb.finish_with_message(&format!(
+                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
+                            gpm::style::package_name(&package),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                            gpm::style::refspec(&tag_name),
+                        )),
+                        // every published package version should be tagged, so this match should "never" happen...
+                        None => pb.finish_with_message(&format!(
+                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
+                            gpm::style::package_name(&package),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                        )),
+                    };
 
                     return Ok(Some((repo, refspec)));
                 } else {

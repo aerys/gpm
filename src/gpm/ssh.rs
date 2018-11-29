@@ -11,6 +11,8 @@ extern crate rpassword;
 
 use std::io::prelude::*;
 
+extern crate dirs;
+
 use pest::Parser;
 
 #[derive(Parser)]
@@ -18,7 +20,7 @@ use pest::Parser;
 pub struct SSHConfigParser;
 
 pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf>, io::Error> {
-    match env::home_dir() {
+    match dirs::home_dir() {
         Some(home_path) => {
             let mut ssh_config_path = path::PathBuf::from(home_path);
 
@@ -84,7 +86,7 @@ pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf
 }
 
 pub fn find_default_ssh_key() -> Option<path::PathBuf> {
-    match env::home_dir() {
+    match dirs::home_dir() {
         Some(home_path) => {
             let mut id_rsa_path = path::PathBuf::from(home_path);
 
