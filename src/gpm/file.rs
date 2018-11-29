@@ -1,6 +1,5 @@
 use std::fs;
 use std::io;
-use std::env;
 use std::path;
 
 use std::io::prelude::*;
@@ -14,6 +13,8 @@ extern crate flate2;
 
 extern crate indicatif;
 use indicatif::{ProgressBar, ProgressStyle};
+
+extern crate dirs;
 
 #[derive(Debug)]
 pub struct FileProgressWriter<F : Fn(usize, usize)> {
@@ -60,7 +61,7 @@ impl<F : Fn(usize, usize)> io::Seek for FileProgressWriter<F> {
 }
 
 pub fn get_or_init_dot_gpm_dir() -> Result<path::PathBuf, io::Error> {
-    let dot_gpm = env::home_dir().unwrap().join(".gpm");
+    let dot_gpm = dirs::home_dir().unwrap().join(".gpm");
 
     if !dot_gpm.exists() {
         return match fs::create_dir_all(&dot_gpm) {
