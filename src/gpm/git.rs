@@ -6,17 +6,14 @@ use std::io::prelude::*;
 
 use git2;
 
-use gpm;
-use gpm::error::CommandError;
-
-extern crate indicatif;
 use indicatif::{ProgressBar, ProgressStyle};
 
-extern crate url;
 use url::{Url};
 
-extern crate crypto_hash;
-use self::crypto_hash::{Hasher, Algorithm};
+use crypto_hash::{Hasher, Algorithm};
+
+use crate::gpm;
+use crate::gpm::error::{CommandError};
 
 pub fn get_git_credentials_callback(
     remote : &String
