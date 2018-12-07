@@ -11,33 +11,22 @@ use clap::{App, Arg};
 #[macro_use]
 extern crate log;
 
-extern crate pretty_env_logger;
-
-extern crate git2;
-
-extern crate gitlfs;
 use gitlfs::lfs;
 
-extern crate url;
 use url::{Url};
 
-extern crate indicatif;
 use indicatif::{ProgressBar, ProgressStyle};
 
-extern crate pest;
 #[macro_use]
 extern crate pest_derive;
 
 extern crate tempfile;
 use tempfile::tempdir;
 
-mod gpm;
-use gpm::error::CommandError;
-
-extern crate console;
 use console::style;
 
-extern crate regex;
+mod gpm;
+use crate::gpm::error::{CommandError};
 
 fn clean_command() -> Result<bool, CommandError> {
     info!("running the \"clean\" command");
@@ -305,7 +294,7 @@ fn install_command(
         } else {
             gpm::ssh::get_ssh_key_and_passphrase(&String::from(remote_url.host_str().unwrap()))
         };
-        let mut file = fs::OpenOptions::new()
+        let file = fs::OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)

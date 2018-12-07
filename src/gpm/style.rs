@@ -1,8 +1,6 @@
 
-extern crate console;
 use console::style;
 
-extern crate url;
 use url::Url;
 
 pub fn command(c : &String) -> String {

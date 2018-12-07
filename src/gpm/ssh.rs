@@ -3,15 +3,7 @@ use std::path;
 use std::io;
 use std::fs;
 
-extern crate regex;
-
-extern crate console;
-
-extern crate rpassword;
-
 use std::io::prelude::*;
-
-extern crate dirs;
 
 use pest::Parser;
 
@@ -181,7 +173,7 @@ pub fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) ->
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
             Err(_) => {
-                let mut t = console::Term::stderr();
+                let t = console::Term::stderr();
 
                 trace!("prompt for passphrase");
                 let pass_string = rpassword::prompt_password_stderr(passphrase_prompt.as_str())

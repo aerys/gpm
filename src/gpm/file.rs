@@ -4,17 +4,9 @@ use std::path;
 
 use std::io::prelude::*;
 
-extern crate tar;
-use self::tar::Archive;
+use tar::Archive;
 
-extern crate tempfile;
-
-extern crate flate2;
-
-extern crate indicatif;
 use indicatif::{ProgressBar, ProgressStyle};
-
-extern crate dirs;
 
 #[derive(Debug)]
 pub struct FileProgressWriter<F : Fn(usize, usize)> {
