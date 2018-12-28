@@ -134,8 +134,8 @@ pub fn extract_package(
         if path.exists() {
             if !force {
                 warn!(
-                    "{} not extracted: path already exist, use --force to override",
-                    path.display()
+                    "{:?} not extracted: path already exist, use --force to override\n",
+                    path
                 );
                 continue;
             }
