@@ -201,7 +201,7 @@ fn download_command(
             .expect("unable to open LFS object target file");
         let pb = ProgressBar::new(size as u64);
         pb.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}){wide_msg}")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
             .progress_chars("#>-"));
         pb.enable_steady_tick(200); 
         pb.set_message(&format!("downloading {}={}", &package, &refspec));       
