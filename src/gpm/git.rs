@@ -13,7 +13,7 @@ use url::{Url};
 use crypto_hash::{Hasher, Algorithm};
 
 use crate::gpm;
-use crate::gpm::error::{CommandError};
+use crate::gpm::command::{CommandError};
 
 pub fn get_git_credentials_callback(
     remote : &String

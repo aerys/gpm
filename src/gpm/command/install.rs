@@ -1,0 +1,194 @@
+use std::path;
+use std::fs;
+
+use console::style;
+use tempfile::tempdir;
+use url::{Url};
+use indicatif::{ProgressBar, ProgressStyle};
+use clap::{ArgMatches};
+
+use gitlfs::lfs;
+
+use crate::gpm;
+use crate::gpm::command::{Command, CommandError};
+
+pub struct InstallPackageCommand {
+}
+
+impl InstallPackageCommand {
+    fn run_install(
+        &self,
+        remote : Option<String>,
+        package : &String,
+        revision : &String,
+        prefix : &path::Path,
+        force : bool,
+    ) -> Result<bool, CommandError> {
+        info!("running the \"install\" command for package {} at revision {}", package, revision);
+
+        println!(
+            "{} package {} at revision {}",
+            gpm::style::command(&String::from("Installing")),
+            gpm::style::package_name(&package),
+            gpm::style::revision(&revision),
+        );
+
+        println!(
+            "{} Resolving package",
+            style("[1/3]").bold().dim(),
+        );
+
+        let (repo, refspec) = match gpm::git::find_or_init_repo(remote, package, revision)? {
+            Some(repo) => repo,
+            None => panic!("package/revision was not found in any repository"),
+        };
+        let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
+
+        info!("revision {} found as refspec {} in repository {}", &revision, &refspec, remote);
+
+        let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
+        let mut builder = git2::build::CheckoutBuilder::new();
+        builder.force();
+
+        debug!("move repository HEAD to {}", &refspec);
+        repo.set_head_detached(oid).map_err(CommandError::Git)?;
+        repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
+
+        let workdir = repo.workdir().unwrap();
+        let package_filename = format!("{}.tar.gz", package);
+        let package_path = workdir.join(package).join(&package_filename);
+        let parsed_lfs_link_data = lfs::parse_lfs_link_file(&package_path);
+
+        let (total, extracted) = if parsed_lfs_link_data.is_ok() {
+            let (_oid, size) = parsed_lfs_link_data.unwrap().unwrap();
+            let size = size.parse::<usize>().unwrap();
+
+            println!("{} Downloading package", style("[2/3]").bold().dim());
+
+            info!("start downloading archive {} from LFS", package_filename);
+
+            let tmp_dir = tempdir().map_err(CommandError::IO)?;
+            let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
+            let remote_url : Url = remote.parse().unwrap();
+            // If we have a username/password in the remote URL, we assume we can use
+            // HTTP basic auth and we don't even try to find SSH credentials.
+            let (key, passphrase) = if remote_url.username() != "" && remote_url.password().is_some() {
+                (None, None)
+            } else {
+                gpm::ssh::get_ssh_key_and_passphrase(&String::from(remote_url.host_str().unwrap()))
+            };
+            let file = fs::OpenOptions::new()
+                .write(true)
+                .read(true)
+                .create(true)
+                .truncate(true)
+                .open(&tmp_package_path)
+                .expect("unable to open LFS object target file");
+            let pb = ProgressBar::new(size as u64);
+            pb.set_style(ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
+                .progress_chars("#>-"));
+            pb.enable_steady_tick(200);
+            let mut progress = gpm::file::FileProgressWriter::new(
+                file,
+                size,
+                |p : usize, _t : usize| {
+                    pb.set_position(p as u64);
+                }
+            );
+            
+            lfs::resolve_lfs_link(
+                remote.parse().unwrap(),
+                Some(refspec.clone()),
+                &package_path,
+                &mut progress,
+                key,
+                passphrase,
+            ).map_err(CommandError::IO)?;
+
+            pb.finish_with_message("downloaded");
+            
+            println!(
+                "{} Extracting package in {:?}",
+                style("[3/3]").bold().dim(),
+                prefix,
+            );
+
+            gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
+        } else {
+            warn!("package {} does not use LFS", package);
+
+            println!(
+                "{} Extracting package in {:?}",
+                style("[3/3]").bold().dim(),
+                prefix,
+            );
+
+            gpm::file::extract_package(&package_path, &prefix, force).map_err(CommandError::IO)?
+        };
+
+        if total == 0 {
+            warn!("no files to extract from the archive {}: is your package archive empty?", package_filename);
+        }
+
+        // ? FIXME: reset back to HEAD?
+
+        if extracted != 0 {
+            println!("{}", style("Done!").green());
+        }
+
+        Ok(extracted != 0)
+    }
+}
+
+impl Command for InstallPackageCommand {
+    fn matched_args<'a, 'b>(&self, args : &'a ArgMatches<'b>) -> Option<&'a ArgMatches<'b>> {
+        args.subcommand_matches("install")
+    }
+
+    fn run(&self, args: &ArgMatches) -> Result<bool, CommandError> {
+        let force = args.is_present("force");
+        let prefix = path::Path::new(args.value_of("prefix").unwrap());
+
+        if !prefix.exists() {
+            if !force {
+                error!("path {:?} (passed via --prefix) does not exist", prefix);
+                std::process::exit(1);
+            } else {
+                debug!("--force is used: creating missing path {:?}", prefix);
+                fs::create_dir_all(prefix).expect("unable to create directory");
+            }
+        }
+        if !prefix.is_dir() {
+            Err(CommandError::String(format!("path {:?} (passed via --prefix) is not a directory", prefix)))
+        } else {
+            let package = String::from(args.value_of("package").unwrap());
+            let (repo, package, revision) = gpm::package::parse_ref(&package);
+
+            if repo.is_some() {
+                debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
+            } else {
+                debug!("parsed package: name = {}, revision = {}", package, revision);
+            }
+
+            match self.run_install(repo, &package, &revision, &prefix, force) {
+                Ok(success) => if success {
+                    info!("package {} successfully installed at revision {} in {}", package, revision, prefix.display());
+                    Ok(success)
+                } else {
+                    Err(CommandError::String(format!(
+                        "package {} was not successfully installed at revision {} in {}, check the logs for warnings/errors",
+                        package,
+                        revision,
+                        prefix.display()
+                    )))
+                },
+                Err(e) => {
+                    error!("could not install package \"{}\" at revision {}: {}", package, revision, e);
+
+                    Err(e)
+                },
+            }
+        }
+    }
+}

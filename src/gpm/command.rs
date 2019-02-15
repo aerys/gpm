@@ -2,6 +2,11 @@ use std::io;
 use std::fmt;
 
 use git2;
+use clap::{ArgMatches};
+
+pub mod install;
+pub mod download;
+pub mod update;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -36,4 +41,17 @@ impl fmt::Display for CommandError {
             CommandError::String(s) => write!(f, "{}", s),
         }
     }
+}
+
+pub trait Command {
+    fn matched_args<'a, 'b>(&self, args : &'a ArgMatches<'b>) -> Option<&'a ArgMatches<'b>>;
+    fn run(&self, args: &ArgMatches) -> Result<bool, CommandError>;
+}
+
+pub fn commands() -> Vec<Box<Command>> {
+    vec![
+        Box::new(install::InstallPackageCommand {}),
+        Box::new(download::DownloadPackageCommand {}),
+        Box::new(update::UpdatePackageRepositoriesCommand {}),
+    ]
 }
