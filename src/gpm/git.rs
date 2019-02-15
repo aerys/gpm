@@ -55,7 +55,6 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     opts.remote_callbacks(callbacks);
     opts.download_tags(git2::AutotagOption::All);
 
-    origin_remote.fetch(&["master"], Some(&mut opts), None)?;
 
     let oid = repo.refname_to_id("refs/remotes/origin/master")?;
     let object = repo.find_object(oid, None)?;
@@ -65,6 +64,8 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     builder.force();
     repo.set_head("refs/heads/master")?;
     repo.checkout_head(Some(&mut builder))?;
+    
+    origin_remote.fetch(&["master"], Some(&mut opts), None)?;
 
     Ok(())
 }
