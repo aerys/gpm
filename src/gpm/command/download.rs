@@ -84,6 +84,7 @@ impl DownloadPackageCommand {
             };
             let file = fs::OpenOptions::new()
                 .write(true)
+                .read(true)
                 .create(true)
                 .truncate(true)
                 .open(&cwd_package_path)
