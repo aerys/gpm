@@ -272,25 +272,31 @@ pub fn find_repo_by_package_and_revision(
                     ).map_err(CommandError::Git)?;
 
                     match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
-                        Some(tag_name) => pb.finish_with_message(&format!(
-                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
-                            gpm::style::package_name(package.name()),
-                            gpm::style::package_extension(&String::from(".tar.gz")),
-                            gpm::style::remote_url(&remote),
-                            gpm::style::refspec(&refspec),
-                            gpm::style::refspec(&tag_name),
-                        )),
-                        // every published package version should be tagged, so this match should "never" happen...
-                        None => pb.finish_with_message(&format!(
-                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
-                            gpm::style::package_name(package.name()),
-                            gpm::style::package_extension(&String::from(".tar.gz")),
-                            gpm::style::remote_url(&remote),
-                            gpm::style::refspec(&refspec),
-                        )),
-                    };
+                        Some(tag_name) => {
+                            pb.finish_with_message(&format!(
+                                "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
+                                gpm::style::package_name(package.name()),
+                                gpm::style::package_extension(&String::from(".tar.gz")),
+                                gpm::style::remote_url(&remote),
+                                gpm::style::refspec(&refspec),
+                                gpm::style::refspec(&tag_name),
+                            ));
 
-                    return Ok(Some((repo, refspec)));
+                            return Ok(Some((repo, format!("refs/tags/{}", tag_name))));
+                        },
+                        // every published package version should be tagged, so this match should "never" happen...
+                        None => {
+                            pb.finish_with_message(&format!(
+                                "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
+                                gpm::style::package_name(package.name()),
+                                gpm::style::package_extension(&String::from(".tar.gz")),
+                                gpm::style::remote_url(&remote),
+                                gpm::style::refspec(&refspec),
+                            ));
+                            
+                            return Ok(Some((repo, refspec)));
+                        },
+                    };
                 } else {
                     debug!("package archive {}.tar.gz cound not be found in refspec {}, skipping to next repository", package, &refspec);
                     continue;
