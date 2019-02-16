@@ -8,9 +8,13 @@ extern crate log;
 #[macro_use]
 extern crate pest_derive;
 
+use dotenv::dotenv;
+
 mod gpm;
 
 fn main() {
+    dotenv().ok();
+
     pretty_env_logger::init_custom_env("GPM_LOG");
 
     let matches = App::new("gpm")
