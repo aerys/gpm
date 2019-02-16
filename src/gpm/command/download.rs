@@ -52,9 +52,8 @@ impl DownloadPackageCommand {
         repo.set_head_detached(oid).map_err(CommandError::Git)?;
         repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
-        let package_filename = package.get_archive_filename();
         let package_path = package.get_archive_path(Some(path::PathBuf::from(repo.workdir().unwrap())));
-        let cwd_package_path = package.get_archive_path(Some(env::current_dir().unwrap()));
+        let cwd_package_path = env::current_dir().unwrap().join(&package.get_archive_filename());
 
         if cwd_package_path.exists() && !force {
             error!("path {} already exist, use --force to override", cwd_package_path.display());
@@ -67,7 +66,7 @@ impl DownloadPackageCommand {
             let (_oid, size) = parsed_lfs_link_data.unwrap().unwrap();
             let size = size.parse::<usize>().unwrap();
         
-            info!("start downloading archive {} from LFS", package_filename);
+            info!("start downloading archive {:?} from LFS", cwd_package_path);
 
             println!(
                 "{} Downloading package",
@@ -91,10 +90,9 @@ impl DownloadPackageCommand {
                 .expect("unable to open LFS object target file");
             let pb = ProgressBar::new(size as u64);
             pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
                 .progress_chars("#>-"));
-            pb.enable_steady_tick(200); 
-            pb.set_message(&format!("downloading {}={}", &package, &refspec));       
+            pb.enable_steady_tick(200);
             let mut progress = gpm::file::FileProgressWriter::new(
                 file,
                 size,
@@ -112,7 +110,7 @@ impl DownloadPackageCommand {
                 passphrase,
             ).map_err(CommandError::IO)?;
 
-            pb.finish_with_message(&format!("downloaded {}={}", &package, &refspec));
+            pb.finish();
         } else {
             fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
         }
@@ -134,11 +132,7 @@ impl Command for DownloadPackageCommand {
         let force = args.is_present("force");
         let package = Package::parse(&String::from(args.value_of("package").unwrap()));
 
-        // if repo.is_some() {
-        //     debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
-        // } else {
-        //     debug!("parsed package: name = {}, revision = {}", package, revision);
-        // }
+        debug!("parsed package: {:?}", &package);
 
         match self.run_download(&package, force) {
             Ok(success) => {
