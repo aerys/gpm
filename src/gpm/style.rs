@@ -29,7 +29,3 @@ pub fn package_extension(ext : &String) -> String {
 pub fn refspec(r : &String) -> String {
     format!("{}", style(&r).magenta())
 }
-
-pub fn revision(r : &String) -> String {
-    format!("{}", style(&r).magenta())
-}

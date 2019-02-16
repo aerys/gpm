@@ -1,5 +1,6 @@
 use std::fs;
 use std::env;
+use std::path;
 
 use console::style;
 use url::{Url};
@@ -10,6 +11,7 @@ use gitlfs::lfs;
 
 use crate::gpm;
 use crate::gpm::command::{Command, CommandError};
+use crate::gpm::package::Package;
 
 pub struct DownloadPackageCommand {
 }
@@ -17,18 +19,15 @@ pub struct DownloadPackageCommand {
 impl DownloadPackageCommand {
     fn run_download(
         &self,
-        remote : Option<String>,
-        package : &String,
-        revision : &String,
+        package : &Package,
         force : bool,
     ) -> Result<bool, CommandError> {
-        info!("running the \"download\" command for package {} at revision {}", package, revision);
+        info!("running the \"download\" command for package {}", package);
 
         println!(
-            "{} package {} at revision {}",
+            "{} package {}",
             gpm::style::command(&String::from("Downloading")),
-            gpm::style::package_name(&package),
-            gpm::style::revision(&revision),
+            package,
         );
 
         println!(
@@ -36,27 +35,26 @@ impl DownloadPackageCommand {
             style("[1/2]").bold().dim(),
         );
 
-        let (repo, refspec) = match gpm::git::find_or_init_repo(remote, package, revision)? {
+        let (repo, refspec) = match gpm::git::find_or_init_repo(package)? {
             Some(repo) => repo,
             None => panic!("package/revision was not found in any repository"),
         };
 
         let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
-        info!("revision {} found as refspec {} in repository {}", &revision, &refspec, remote);
+        info!("{} found as refspec {} in repository {}", package, &refspec, remote);
 
         let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
 
-        debug!("move repository HEAD to {}", revision);
+        debug!("move repository HEAD to {}", refspec);
         repo.set_head_detached(oid).map_err(CommandError::Git)?;
         repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
-        let workdir = repo.workdir().unwrap();
-        let package_filename = format!("{}.tar.gz", package);
-        let package_path = workdir.join(package).join(&package_filename);
-        let cwd_package_path = env::current_dir().unwrap().join(&package_filename);
+        let package_filename = package.get_archive_filename();
+        let package_path = package.get_archive_path(Some(path::PathBuf::from(repo.workdir().unwrap())));
+        let cwd_package_path = package.get_archive_path(Some(env::current_dir().unwrap()));
 
         if cwd_package_path.exists() && !force {
             error!("path {} already exist, use --force to override", cwd_package_path.display());
@@ -133,19 +131,18 @@ impl Command for DownloadPackageCommand {
 
     fn run(&self, args: &ArgMatches) -> Result<bool, CommandError> {
         let force = args.is_present("force");
-        let package = String::from(args.value_of("package").unwrap());
-        let (repo, package, revision) = gpm::package::parse_ref(&package);
+        let package = Package::parse(&String::from(args.value_of("package").unwrap()));
 
-        if repo.is_some() {
-            debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
-        } else {
-            debug!("parsed package: name = {}, revision = {}", package, revision);
-        }
+        // if repo.is_some() {
+        //     debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
+        // } else {
+        //     debug!("parsed package: name = {}, revision = {}", package, revision);
+        // }
 
-        match self.run_download(repo, &package, &revision, force) {
+        match self.run_download(&package, force) {
             Ok(success) => {
                 if success {
-                    info!("package {} successfully downloaded at revision {}", package, revision);
+                    info!("package {} successfully downloaded", &package);
 
                     Ok(true)
                 } else {
