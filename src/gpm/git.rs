@@ -144,9 +144,30 @@ pub fn find_or_init_repo(
             }
 
             match package.find_matching_refspec(&repo) {
-                Some(refspec) => match find_package_tag(package, &repo, &refspec, &remote)? {
-                    Some(tag_refspec) => Ok(Some((repo, tag_refspec))),
-                    None => Ok(Some((repo, refspec))),
+                Some(refspec) => match find_package_tag(package, &repo, &refspec)? {
+                    Some(tag_refspec) => {
+                        println!(
+                            "  Found:\n    {}{}\n  in:\n    {}\n  at refspec:\n    {}\n  tagged as:\n    {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                            gpm::style::refspec(&tag_refspec),
+                        );
+
+                        Ok(Some((repo, tag_refspec)))
+                    },
+                    None => {
+                        println!(
+                            "  Found:\n    {}{}\n  in:\n    {}\n  at refspec:\n    {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                        );
+
+                        Ok(Some((repo, refspec)))
+                    },
                 },
                 // We could not find the revision in the specified remote.
                 // So we make the repo throw an error on purpose:
@@ -263,9 +284,30 @@ pub fn find_repo_by_package_and_revision(
 
                 pb.finish();
 
-                match find_package_tag(package, &repo, &refspec, &remote)? {
-                    Some(tag_name) => return Ok(Some((repo, format!("refs/tags/{}", tag_name)))),
-                    None => return Ok(Some((repo, refspec))),
+                match find_package_tag(package, &repo, &refspec)? {
+                    Some(tag_name) => {
+                        println!(
+                            "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                            gpm::style::refspec(&tag_name),
+                        );
+                        
+                        return Ok(Some((repo, tag_name)));
+                    },
+                    None => {
+                        println!(
+                            "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                        );
+
+                        return Ok(Some((repo, refspec)));
+                    },
                 }
             },
             None => {
@@ -282,7 +324,6 @@ fn find_package_tag(
     package: &Package,
     repo: &git2::Repository,
     refspec: &String,
-    remote: &String,
 ) -> Result<Option<String>, CommandError> {
     let mut builder = git2::build::CheckoutBuilder::new();
     builder.force();
@@ -299,27 +340,10 @@ fn find_package_tag(
 
         match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
             Some(tag_name) => {
-                println!(
-                    "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
-                    gpm::style::package_name(package.name()),
-                    gpm::style::package_extension(&String::from(".tar.gz")),
-                    gpm::style::remote_url(&remote),
-                    gpm::style::refspec(&refspec),
-                    gpm::style::refspec(&tag_name),
-                );
-
                 return Ok(Some(format!("refs/tags/{}", tag_name)));
             },
             // every published package version should be tagged, so this match should "never" happen...
-            None => {
-                println!(
-                    "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
-                    gpm::style::package_name(package.name()),
-                    gpm::style::package_extension(&String::from(".tar.gz")),
-                    gpm::style::remote_url(&remote),
-                    gpm::style::refspec(&refspec),
-                );
-            },
+            None => (),
         }
     }
 
