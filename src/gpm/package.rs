@@ -8,14 +8,14 @@ use console::style;
 #[derive(Debug)]
 pub struct PackageVersion {
     raw: String,
-    semver_req: Option<VersionReq>,
+    version_req: Option<VersionReq>,
 }
 
 impl PackageVersion {
     pub fn new(s: &String) -> PackageVersion {
         PackageVersion {
             raw: s.to_owned(),
-            semver_req: match VersionReq::parse(s.as_str()) {
+            version_req: match VersionReq::parse(s.as_str()) {
                 Ok(req) => Some(req),
                 Err(_) => None,
             },
@@ -25,7 +25,7 @@ impl PackageVersion {
     pub fn latest() -> PackageVersion {
         PackageVersion {
             raw: String::from("refs/heads/master"),
-            semver_req: None,
+            version_req: None,
         }
     }
 
@@ -33,24 +33,16 @@ impl PackageVersion {
         &self.raw
     }
 
-    pub fn maybe_refspec(&self) -> bool {
-        self.semver_req.is_none()
+    pub fn version_req(&self) -> &Option<VersionReq> {
+        &self.version_req
     }
 
-    pub fn is_semver_req(&self) -> bool {
-        self.semver_req.is_some()
+    pub fn maybe_refspec(&self) -> bool {
+        self.version_req.is_none()
     }
 
     pub fn is_latest(&self) -> bool {
         self.raw == "refs/heads/master"
-    }
-
-    pub fn matches(&self, version: &str) -> bool {
-        if self.is_semver_req() {
-            self.semver_req.as_ref().unwrap().matches(&Version::parse(version).unwrap())
-        } else {
-            self.raw == *version
-        }
     }
 }
 
@@ -140,25 +132,41 @@ impl Package {
         } else {
             // Second - and this is the expected normal behavior - we match the version using semver.
             // To do this, we reverse iterate through the repo's tags and find a matching versions.
-            // We expect Repository::tag_names to return tag names in chronological order.
-            // The last matching tag *must* be the latest one, so the "best matching" one.
-            repo.tag_names(None).unwrap().into_iter()
-                .filter(|tag_name| -> bool { tag_name.is_some() })
-                .map(|tag_name| String::from(tag_name.unwrap()))
-                .filter(|tag_name| -> bool {
-                    if tag_name.contains("/") {
-                        let parts : Vec<&str> = tag_name.split("/").collect();
-                        let package_name = parts[0];
-                        let package_version = parts[1];
+            let mut tag_names = repo.tag_names(None).unwrap().into_iter()
+                .filter(|tag_name| -> bool { tag_name.is_some() && tag_name.unwrap().contains("/") })
+                .map(|tag_name| {
+                    let parts = tag_name.unwrap().split("/").collect::<Vec<&str>>();
+                    let version = match Version::parse(parts[1]) {
+                        Ok(version) => Some(version),
+                        Err(_) => None,
+                    };
 
-                        if self.name == package_name && self.version().matches(&package_version) {
-                            return true
-                        }
-                    }
-
-                    return false;
+                    (String::from(parts[0]), version)
                 })
-                .map(|tag_name| format!("refs/tags/{}", tag_name))
+                .filter(|t| t.0 == self.name && t.1.is_some())
+                .map(|t| (t.0, t.1.unwrap()))
+                .collect::<Vec<(String, Version)>>();
+
+            tag_names.sort_by(|a, b| {
+                if a.0 != b.0 {
+                    a.0.cmp(&b.0)
+                } else {
+                    if a.1 < b.1 {
+                        std::cmp::Ordering::Less
+                    } else if a.1 == b.1 {
+                        std::cmp::Ordering::Equal
+                    } else {
+                        std::cmp::Ordering::Greater
+                    }
+                }
+            });
+
+            tag_names
+                .into_iter()
+                .filter(|tag| -> bool {
+                    self.name == tag.0 && self.version.version_req().as_ref().unwrap().matches(&tag.1)
+                })
+                .map(|tag| format!("refs/tags/{}/{}", tag.0, tag.1.to_string()))
                 .last()
         }
     }
@@ -191,7 +199,7 @@ impl Package {
 
 impl fmt::Display for Package {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.version.is_semver_req() {
+        if self.version.version_req().is_some() {
             write!(f, "{}{}", style(&self.name).cyan(), self.version)
         } else if self.version.is_latest() {
             write!(f, "{}", style(&self.name).cyan())
