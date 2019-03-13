@@ -1,13 +1,14 @@
-config = _{ soi ~ host* ~ eoi }
+config = _{ SOI ~ host* ~ EOI }
 host = { "Host" ~ pattern+ ~ newline ~ option* ~ newline* }
 option = { key ~ dquote? ~ value ~ dquote? ~ newline+ }
 key = @{ !"Host" ~ ('a'..'z' | 'A'..'Z')+ }
-value = { (!newline ~ !dquote ~ any)* }
+value = { (!newline ~ !dquote ~ ANY)* }
 
 pattern = ${ "!"? ~ (digit | 'a'..'z' | 'A'..'Z' | "-" | "_" | "." | "*")+ }
 
 dquote = _{ "\"" }
 digit = @{ '0'..'9' }
 newline = _{ "\n" | "\r\n" }
-whitespace = _{ " " | "\t" }
-comment = _{ "#" ~ (!newline ~ any)* }
+
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ "#" ~ (!newline ~ ANY)* }
