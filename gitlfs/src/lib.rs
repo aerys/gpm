@@ -22,7 +22,7 @@ pub mod lfs {
     use url::{Url};
     
     use reqwest;
-    use reqwest::header::{Accept, ContentType, Authorization, qitem};
+    use reqwest::header;
 
     use std::io::prelude::*;
     use std::net::{TcpStream};
@@ -123,18 +123,18 @@ pub mod lfs {
         let url : Url = format!("{}/objects/batch", url).parse().unwrap();
         let mut req = client.post(url.to_owned());
 
-        req.body(payload.to_string())
-            .header(Accept(vec![qitem("application/vnd.git-lfs+json".parse().unwrap())]))
-            .header(ContentType("application/vnd.git-lfs+json".parse().unwrap()));
+        req = req.body(payload.to_string())
+            .header(header::ACCEPT, "application/vnd.git-lfs+json")
+            .header(header::CONTENT_TYPE, "application/vnd.git-lfs+json");
 
         // Having the username/password in the URL is not enough.
         // We must enable HTTP basic auth explicitely.
         if url.username() != "" {
-            req.basic_auth(url.username(), url.password());
+            req = req.basic_auth(url.username(), url.password());
         }
 
         if auth_token.is_some() {
-            req.header(Authorization(auth_token.unwrap().to_owned()));
+            req = req.header(header::AUTHORIZATION, auth_token.unwrap());
         }
 
         trace!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
@@ -304,7 +304,7 @@ pub mod lfs {
         let mut req = client.get(url);
 
         if auth_token.is_some() {
-            req.header(Authorization(auth_token.unwrap()));
+            req = req.header(header::AUTHORIZATION, auth_token.unwrap());
         }
 
         let mut res = req.send()?;
