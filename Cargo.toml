@@ -9,7 +9,9 @@ panic = "abort"
 lto = true
 codegen-units = 1
 incremental = false
-opt-level = "z"
+# We cannot use both lto = true and opt-level = "z" because of this bug:
+# https://github.com/mitsuhiko/indicatif/issues/88
+opt-level = "s"
 
 [dependencies.gitlfs]
 path = "./gitlfs"
@@ -34,4 +36,5 @@ indicatif = "0.11.0"
 console = "0.7.5"
 crypto-hash = "0.3.3"
 dirs = "1.0.5"
+semver = "0.9.0"
 dotenv = "0.13.0"

@@ -14,6 +14,7 @@ use crypto_hash::{Hasher, Algorithm};
 
 use crate::gpm;
 use crate::gpm::command::{CommandError};
+use crate::gpm::package::Package;
 
 pub fn get_git_credentials_callback(
     remote : &String
@@ -132,40 +133,11 @@ pub fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, Comma
     Ok(path)
 }
 
-pub fn revision_to_refspec(
-    repo : &git2::Repository,
-    package : &String,
-    revision : &String,
-) -> Option<String> {
-    if repo.refname_to_id(&revision).is_ok() {
-        return Some(revision.to_owned());
-    }
-
-    let tag_refspec = format!("refs/tags/{}", &revision);
-    if repo.refname_to_id(&tag_refspec).is_ok() {
-        return Some(tag_refspec);
-    }
-
-    let tag_refspec = format!("refs/tags/{}/{}", &package, &revision);
-    if repo.refname_to_id(&tag_refspec).is_ok() {
-        return Some(tag_refspec);
-    }
-
-    let branch_refspec = format!("refs/heads/{}", &revision);
-    if repo.refname_to_id(&branch_refspec).is_ok() {
-        return Some(branch_refspec);
-    }
-
-    return None;
-}
-
 pub fn find_or_init_repo(
-    remote : Option<String>,
-    package: &String,
-    revision : &String,
+    package: &Package,
 ) -> Result<Option<(git2::Repository, String)>, CommandError> {
 
-    match remote {
+    match package.remote() {
         Some(remote) => {
             let (repo, is_new_repo) = gpm::git::get_or_clone_repo(&remote)?;
 
@@ -173,17 +145,41 @@ pub fn find_or_init_repo(
                 gpm::git::pull_repo(&repo).map_err(CommandError::Git)?;
             }
 
-            match revision_to_refspec(&repo, package, revision) {
-                Some(refspec) => Ok(Some((repo, refspec))),
+            match package.find_matching_refspec(&repo) {
+                Some(refspec) => match find_package_tag(package, &repo, &refspec)? {
+                    Some(tag_refspec) => {
+                        println!(
+                            "  Found:\n    {}{}\n  in:\n    {}\n  at refspec:\n    {}\n  tagged as:\n    {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                            gpm::style::refspec(&tag_refspec),
+                        );
+
+                        Ok(Some((repo, tag_refspec)))
+                    },
+                    None => {
+                        println!(
+                            "  Found:\n    {}{}\n  in:\n    {}\n  at refspec:\n    {}",
+                            gpm::style::package_name(package.name()),
+                            gpm::style::package_extension(&String::from(".tar.gz")),
+                            gpm::style::remote_url(&remote),
+                            gpm::style::refspec(&refspec),
+                        );
+
+                        Ok(Some((repo, refspec)))
+                    },
+                },
                 // We could not find the revision in the specified remote.
                 // So we make the repo throw an error on purpose:
-                None => Err(CommandError::Git(repo.refname_to_id(revision).err().unwrap()))
+                None => Err(CommandError::Git(repo.refname_to_id(package.version().raw()).err().unwrap()))
             }
         },
         None => {
-            debug!("no specific remote provided: searching for package {} at revision {}", package, revision);
+            debug!("no specific remote provided: searching");
 
-            find_repo_by_package_and_revision(package, revision)
+            find_repo_by_package_and_revision(&package)
         },
     }
 }
@@ -251,8 +247,7 @@ pub fn find_last_commit_id(
 }
 
 pub fn find_repo_by_package_and_revision(
-    package : &String,
-    revision : &String,
+    package : &Package,
 ) -> Result<Option<(git2::Repository, String)>, CommandError> {
     let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
@@ -272,7 +267,7 @@ pub fn find_repo_by_package_and_revision(
     pb.enable_steady_tick(200);
 
     for remote in remotes {
-        debug!("searching for revision {} in repository {}", revision, remote);
+        debug!("searching in repository {}", remote);
 
         let path = gpm::git::remote_url_to_cache_path(&remote)?;
         let repo = git2::Repository::open(path).map_err(CommandError::Git)?;
@@ -285,46 +280,36 @@ pub fn find_repo_by_package_and_revision(
         repo.set_head("refs/heads/master")?;
         repo.checkout_head(Some(&mut builder))?;
 
-        match revision_to_refspec(&repo, &package, &revision) {
+        match package.find_matching_refspec(&repo) {
             Some(refspec) => {
-                debug!("revision {} found with refspec {}", revision, refspec);
+                debug!("found with refspec {}", refspec);
 
-                let mut builder = git2::build::CheckoutBuilder::new();
-                builder.force();
-                repo.set_head(&refspec)?;
-                repo.checkout_head(Some(&mut builder))?;
+                pb.finish();
 
-                if package_archive_is_in_repo(&repo, package) {
-                    debug!("package archive {}.tar.gz found in refspec {}", package, &refspec);
-
-                    let package_commit_id = find_last_commit_id(
-                        &path::Path::new(&format!("{}/{}.tar.gz", &package, &package)),
-                        &repo,
-                    ).map_err(CommandError::Git)?;
-
-                    match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
-                        Some(tag_name) => pb.finish_with_message(&format!(
-                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
-                            gpm::style::package_name(&package),
+                match find_package_tag(package, &repo, &refspec)? {
+                    Some(tag_name) => {
+                        println!(
+                            "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}\n    tagged as:\n      {}",
+                            gpm::style::package_name(package.name()),
                             gpm::style::package_extension(&String::from(".tar.gz")),
                             gpm::style::remote_url(&remote),
                             gpm::style::refspec(&refspec),
                             gpm::style::refspec(&tag_name),
-                        )),
-                        // every published package version should be tagged, so this match should "never" happen...
-                        None => pb.finish_with_message(&format!(
-                            "found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
-                            gpm::style::package_name(&package),
+                        );
+                        
+                        return Ok(Some((repo, tag_name)));
+                    },
+                    None => {
+                        println!(
+                            "    Found:\n      {}{}\n    in:\n      {}\n    at refspec:\n      {}",
+                            gpm::style::package_name(package.name()),
                             gpm::style::package_extension(&String::from(".tar.gz")),
                             gpm::style::remote_url(&remote),
                             gpm::style::refspec(&refspec),
-                        )),
-                    };
+                        );
 
-                    return Ok(Some((repo, refspec)));
-                } else {
-                    debug!("package archive {}.tar.gz cound not be found in refspec {}, skipping to next repository", package, &refspec);
-                    continue;
+                        return Ok(Some((repo, refspec)));
+                    },
                 }
             },
             None => {
@@ -337,12 +322,32 @@ pub fn find_repo_by_package_and_revision(
     Ok(None)
 }
 
-pub fn package_archive_is_in_repo(repo : &git2::Repository, package : &String) -> bool {
-    let archive_filename = format!("{}.tar.gz", &package);
-    let mut path = repo.workdir().unwrap().to_owned();
+fn find_package_tag(
+    package: &Package,
+    repo: &git2::Repository,
+    refspec: &String,
+) -> Result<Option<String>, CommandError> {
+    let mut builder = git2::build::CheckoutBuilder::new();
+    builder.force();
+    repo.set_head(&refspec)?;
+    repo.checkout_head(Some(&mut builder))?;
 
-    path.push(package);
-    path.push(archive_filename);
+    if package.archive_is_in_repository(&repo) {
+        debug!("package archive found in refspec {}", &refspec);
 
-    return path.exists();
+        let package_commit_id = find_last_commit_id(
+            &package.get_archive_path(None),
+            &repo,
+        ).map_err(CommandError::Git)?;
+
+        match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
+            Some(tag_name) => {
+                return Ok(Some(format!("refs/tags/{}", tag_name)));
+            },
+            // every published package version should be tagged, so this match should "never" happen...
+            None => (),
+        }
+    }
+
+    return Ok(None);
 }

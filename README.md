@@ -9,25 +9,22 @@ A statically linked, native, platform agnostic Git-based package manager written
 
 <!-- TOC depthFrom:2 -->
 
-- [1. Getting started](#1-getting-started)
-    - [1.1. Creating a package repository](#11-creating-a-package-repository)
-    - [1.2. Publishing your first package](#12-publishing-your-first-package)
-    - [1.3. Installing your first package](#13-installing-your-first-package)
+- [1. Install](#1-install)
 - [2. Build](#2-build)
     - [2.1. Development build](#21-development-build)
     - [2.2. Release (static) build](#22-release-static-build)
-- [3. Authentication](#3-authentication)
-- [4. Best practices](#4-best-practices)
-    - [4.1. Publishing a package](#41-publishing-a-package)
-    - [4.2. Installing a package at a specific version](#42-installing-a-package-at-a-specific-version)
-    - [4.3. Upgrading to/installing the latest revision of a package](#43-upgrading-toinstalling-the-latest-revision-of-a-package)
-- [5. Package reference notations](#5-package-reference-notations)
-    - [5.1. `${package}=${revision}` notation](#51-packagerevision-notation)
-    - [5.2. Shorthand notations](#52-shorthand-notations)
-        - [5.2.1. Implicit package name in revision (recommended)](#521-implicit-package-name-in-revision-recommended)
-        - [5.2.2. Semver notation](#522-semver-notation)
-        - [5.2.3. Latest revision notation](#523-latest-revision-notation)
-    - [5.3. URI notation](#53-uri-notation)
+- [3. Getting started](#3-getting-started)
+    - [3.1. Creating a package repository](#31-creating-a-package-repository)
+    - [3.2. Publishing your first package](#32-publishing-your-first-package)
+    - [3.3. Installing your first package](#33-installing-your-first-package)
+- [4. Authentication](#4-authentication)
+- [5. Package reference notation](#5-package-reference-notation)
+    - [5.1. Package name](#51-package-name)
+        - [5.1.1. Shorthand notation](#511-shorthand-notation)
+        - [5.1.2. URI notation](#512-uri-notation)
+    - [5.2. Package version](#52-package-version)
+        - [5.2.1. SemVer notation](#521-semver-notation)
+        - [5.2.2. Git refspec notation](#522-git-refspec-notation)
 - [6. Matching package references](#6-matching-package-references)
 - [7. Working with multiple package repositories](#7-working-with-multiple-package-repositories)
 - [8. Logging](#8-logging)
@@ -48,9 +45,41 @@ A statically linked, native, platform agnostic Git-based package manager written
 
 <!-- /TOC -->
 
-## 1. Getting started
+## 1. Install
 
-### 1.1. Creating a package repository
+* Linux: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-linux64/gpm-linux64.tar.gz | tar xvz`
+* Windows: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz | tar xvz`
+
+## 2. Build
+
+### 2.1. Development build
+
+Dependencies:
+
+* OpenSSL
+
+```bash
+cargo build
+```
+
+### 2.2. Release (static) build
+
+Dependencies:
+
+* Docker
+
+```bash
+docker run \
+    --rm -it \
+    -v "$(pwd)":/home/rust/src \
+    -v "/home/${USER}/.cargo":/home/rust/.cargo \
+    ekidd/rust-musl-builder \
+    cargo build --release --target x86_64-unknown-linux-musl
+```
+
+## 3. Getting started
+
+### 3.1. Creating a package repository
 
 1. Create a [git-lfs](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
 2. [Install git-lfs](https://github.com/git-lfs/git-lfs/wiki/Installation) on your local computer.
@@ -77,7 +106,7 @@ git push
 
 Voilà! You're all set to publish your first package!
 
-### 1.2. Publishing your first package
+### 3.2. Publishing your first package
 
 In this example, we're going to create a simple `hello-world` package and publish it.
 
@@ -122,14 +151,9 @@ git push --tags
 
 Your `hello-world/1.0` package is now stored in your package repository and can be installed using `gpm`!
 
-### 1.3. Installing your first package
+### 3.3. Installing your first package
 
-1. Download (or build) `gpm`.
-
-```bash
-curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-linux64/gpm-linux64.tar.gz | tar xvz
-```
-
+1. Install (or build) `gpm`.
 2. Add your package repository to the `gpm` sources:
 
 ```bash
@@ -151,35 +175,7 @@ gpm install hello-world/1.0 --prefix ~/
 
 Your `hello-world/1.0` package is now installed and you can run it with `sh ~/hello-world.sh`.
 
-## 2. Build
-
-### 2.1. Development build
-
-Dependencies:
-
-* OpenSSL
-
-
-```bash
-cargo build
-```
-
-### 2.2. Release (static) build
-
-Dependencies:
-
-* Docker
-
-```bash
-docker run \
-    --rm -it \
-    -v "$(pwd)":/home/rust/src \
-    -v "/home/${USER}/.cargo":/home/rust/.cargo \
-    ekidd/rust-musl-builder \
-    cargo build --release --target x86_64-unknown-linux-musl
-```
-
-## 3. Authentication
+## 4. Authentication
 
 `gpm` will behave a lot lit `git` regarding authentication.
 
@@ -203,79 +199,30 @@ If the SSH private key requires a passphrase, then:
 * if the `GPM_SSH_PASS` environment variable is set/not empty, it is used as the passphrase;
 * otherwise, `gpm` will prompt the user to type his passphrase.
 
-## 4. Best practices
+## 5. Package reference notation
 
-### 4.1. Publishing a package
+### 5.1. Package name
 
-Commit the new package revision and tag it with the tag `${package}/${version}`, where `${package}`is the name of your package and `${version}` the [semver](https://semver.org/) version of the package.
+#### 5.1.1. Shorthand notation
 
-### 4.2. Installing a package at a specific version
-
-Use the `${package}/${version}` shorthand notation (aka "implicit package name in revision").
+This is the most trivial, obvious and simple notation: simply use the package name.
 
 Example:
 
-```bash
-gpm install my-package/2.1.0
 ```
-
-### 4.3. Upgrading to/installing the latest revision of a package
-
-Use the `${package}` shorthand notation (aka "latest revision notation"). 
-
-Example:
-
-```bash
 gpm install my-package
 ```
 
-## 5. Package reference notations
+`gpm` will search by name for the specified package in all the available package
+repositories. Thus, for such package reference to be found, you *must* make sure:
 
-### 5.1. `${package}=${revision}` notation
-
-A package can be referenced using the following notation:
-
-`${package}=${revision}`
-
-where:
-
-* `package` is the name of the package (ex: `my-package`),
-* `revision` is a valid Git refspec at which the package archive can be found (ex: `refs/heads/master`, `master`, `my-tag`).
-
-Example: if you have tagged a release of `my-package` with the tag `my-package/2.0`, use the reference `my-package=my-package/2.0`.
-
-For such package reference to be found, you *must* make sure:
 * the corresponding package repository remote is listed in `~/.gpm/sources.list` (see
 [Working with multiple package repositories](#7-working-with-multiple-package-repositories)),
 * the cache has been updated by calling `gpm update`.
 
-### 5.2. Shorthand notations
+#### 5.1.2. URI notation
 
-#### 5.2.1. Implicit package name in revision (recommended)
-
-If therere is no package name explicitely provided and the revision contains a `/`, then the package name is deduced from the part before the `/`.
-
-For example, the package reference `my-package/2.0` will be interpreted as `my-package=my-package/2.0`.
-
-#### 5.2.2. Semver notation
-
-If the package reference contains a `=`, the tag refspec will be deduced from the package name and the revision.
-
-For example, the package reference `my-package=2.0` will be interpreted as `my-package=my-package/2.0`.
-
-#### 5.2.3. Latest revision notation
-
-If the package reference is not an URI and contains neither `/` nor `=`, then `gpm` assumes:
-* the package reference is the package name;
-* the package refspec is "master".
-
-Thus, the package reference `my-package` will be interpreted as `my-package=refs/heads/master`.
-
-This notation is handy to install the latest revision of a package.
-
-### 5.3. URI notation
-
-A package can also be referenced using a full Git URI formatted like this:
+The complete URI notation for a package is as follow:
 
 `${remote-uri}#${package}`
 
@@ -286,25 +233,110 @@ where:
 
 Example:
 
-`ssh://github.com/my/awesome-packages.git#my-package/2.0`
+```bash
+gpm install ssh://github.com/my/awesome-packages.git#my-package
+```
 
 In this case, `gpm` will clone the corresponding Git repository and look for the package there.
 `gpm` will look for the specified package *only* in the specified repository.
 
+### 5.2. Package version
+
+#### 5.2.1. SemVer notation
+
+The version of a package can be specified using the
+[SemVer](https://semver.org/) version requirement notation:
+
+`${package}${semver_req}`
+
+where:
+
+* `package` is the name of the package (ex: `my-package`),
+* `semver_req` is the semver version requirement (ex: `^0.4.2`). If not
+specified, then the latest version will be installed.
+
+It also allows parsing of `~x.y.z` and `^x.y.z` requirements as defined
+at https://www.npmjs.org/doc/misc/semver.html.
+
+Tilde requirements specify a minimal version with some updates:
+
+```
+~1.2.3 := >=1.2.3 <1.3.0
+~1.2   := >=1.2.0 <1.3.0
+~1     := >=1.0.0 <2.0.0
+```
+
+Caret requirements allow SemVer compatible updates to a specified verion,
+`0.x` and `0.x+1` are not considered compatible, but `1.x and `1.x+1 are.
+
+0.0.x is not considered compatible with any other version. Missing minor and
+patch versions are desugared to 0 but allow flexibility for that value.
+
+```
+^1.2.3 := >=1.2.3 <2.0.0
+^0.2.3 := >=0.2.3 <0.3.0
+^0.0.3 := >=0.0.3 <0.0.4
+^0.0   := >=0.0.0 <0.1.0
+^0     := >=0.0.0 <1.0.0
+```
+
+Wildcard requirements allows parsing of version requirements of the formats
+`*`, `x.*` and `x.y.*`.
+
+```
+*     := >=0.0.0
+1.*   := >=1.0.0 <2.0.0
+1.2.* := >=1.2.0 <1.3.0
+```
+
+Example:
+
+```bash
+gpm install my-package>=2.0.0
+```
+
+#### 5.2.2. Git refspec notation
+
+A package version can also be set to a valid
+[Git refspec](https://git-scm.com/book/en/v2/Git-Internals-The-Refspec),
+such as a specific branch or a tag, using the `@` operator:
+
+`${package}@${refspec}`
+
+where:
+
+* `package` is the name of the package (ex: `my-package`),
+* `refspec` is a valid Git refspec (ex: `refs/heads/my-branch` or `refs/tags/my-tag`).
+
 ## 6. Matching package references
 
-The following section explains how `gpm` finds the package archive for a package named `${name}` at revision `${revision}`.
+The following section explains how `gpm` finds the package archive for a package named `${package_name}` at version `${package_version}`.
 
-For each available remote:
-1. Try to find the refspec matching `${revision}`:
-    * If `${revision}` is a valid refspec and can be found, then it will be used directly.
-    * Otherwise, if `refs/tags/${revision}` can be found, it will be used.
-    * Otherwise, if `refs/tags/${name}/${revision}` can be found, it will be used.
-    * Otherwise, if `refs/heads/${revision}` can be found it will be used.
-    * Otherwise, skip to the next remote.
-2. If a valid refspec has been found, reset the repositories to this refspec. Throw an error otherwise.
-3. If the `${name}/${name}.tar.gz` exists at this refspec, use it. Throw an error otherwise.
-4. If `${name}/${name}.tar.gz` is a git-lfs link, resolve it. Otherwise, use `${name}/${name}.tar.gz` directly.
+The following pseudo code explains how GPM will find packages for a specific version:
+
+```
+if ${package_ref} includes remote URL
+    git clone URL
+
+if ${package_ref} does not include version
+    ${package_version} is set to "@master"
+
+for each ${repository} in cache
+    git checkout master
+    git reset --hard
+
+    if ${package_version} is refspec
+        git checkout ${package_version}
+    else # assume ${package_version} is semver
+        for each ${tag} in ${repository}
+            if ${tag} matches semver
+                git checkout ${tag}
+    
+    if file ${package_name}/${package_name}.tgz exists
+        if ${package_name}/${package_name}.tgz is LFS link
+            download ${package_name}/${package_name}.tgz
+        extract ${package_name}/${package_name}.tgz
+```
 
 ## 7. Working with multiple package repositories
 

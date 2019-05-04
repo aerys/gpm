@@ -11,6 +11,7 @@ use gitlfs::lfs;
 
 use crate::gpm;
 use crate::gpm::command::{Command, CommandError};
+use crate::gpm::package::Package;
 
 pub struct InstallPackageCommand {
 }
@@ -18,19 +19,16 @@ pub struct InstallPackageCommand {
 impl InstallPackageCommand {
     fn run_install(
         &self,
-        remote : Option<String>,
-        package : &String,
-        revision : &String,
+        package : &Package,
         prefix : &path::Path,
         force : bool,
     ) -> Result<bool, CommandError> {
-        info!("running the \"install\" command for package {} at revision {}", package, revision);
+        info!("running the \"install\" command for package {} at revision {}", package.name(), package.version());
 
         println!(
-            "{} package {} at revision {}",
+            "{} package {}",
             gpm::style::command(&String::from("Installing")),
-            gpm::style::package_name(&package),
-            gpm::style::revision(&revision),
+            &package,
         );
 
         println!(
@@ -38,13 +36,13 @@ impl InstallPackageCommand {
             style("[1/3]").bold().dim(),
         );
 
-        let (repo, refspec) = match gpm::git::find_or_init_repo(remote, package, revision)? {
+        let (repo, refspec) = match gpm::git::find_or_init_repo(&package)? {
             Some(repo) => repo,
             None => panic!("package/revision was not found in any repository"),
         };
         let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
-        info!("revision {} found as refspec {} in repository {}", &revision, &refspec, remote);
+        info!("revision {:?} found as refspec {} in repository {}", package.version(), &refspec, remote);
 
         let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
         let mut builder = git2::build::CheckoutBuilder::new();
@@ -55,8 +53,8 @@ impl InstallPackageCommand {
         repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
 
         let workdir = repo.workdir().unwrap();
-        let package_filename = format!("{}.tar.gz", package);
-        let package_path = workdir.join(package).join(&package_filename);
+        let package_filename = format!("{}.tar.gz", package.name());
+        let package_path = workdir.join(package.name()).join(&package_filename);
         let parsed_lfs_link_data = lfs::parse_lfs_link_file(&package_path);
 
         let (total, extracted) = if parsed_lfs_link_data.is_ok() {
@@ -86,7 +84,7 @@ impl InstallPackageCommand {
                 .expect("unable to open LFS object target file");
             let pb = ProgressBar::new(size as u64);
             pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta}) {wide_msg}")
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:30.cyan/blue}] {bytes}/{total_bytes} ({eta})")
                 .progress_chars("#>-"));
             pb.enable_steady_tick(200);
             let mut progress = gpm::file::FileProgressWriter::new(
@@ -106,7 +104,7 @@ impl InstallPackageCommand {
                 passphrase,
             ).map_err(CommandError::IO)?;
 
-            pb.finish_with_message("downloaded");
+            pb.finish();
             
             println!(
                 "{} Extracting package in {:?}",
@@ -116,7 +114,7 @@ impl InstallPackageCommand {
 
             gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
         } else {
-            warn!("package {} does not use LFS", package);
+            warn!("package {} does not use LFS", package.name());
 
             println!(
                 "{} Extracting package in {:?}",
@@ -162,29 +160,23 @@ impl Command for InstallPackageCommand {
         if !prefix.is_dir() {
             Err(CommandError::String(format!("path {:?} (passed via --prefix) is not a directory", prefix)))
         } else {
-            let package = String::from(args.value_of("package").unwrap());
-            let (repo, package, revision) = gpm::package::parse_ref(&package);
+            let package = Package::parse(&String::from(args.value_of("package").unwrap()));
 
-            if repo.is_some() {
-                debug!("parsed package URI: repo = {}, name = {}, revision = {}", repo.to_owned().unwrap(), package, revision);
-            } else {
-                debug!("parsed package: name = {}, revision = {}", package, revision);
-            }
+            debug!("parsed package: {:?}", &package);
 
-            match self.run_install(repo, &package, &revision, &prefix, force) {
+            match self.run_install(&package, &prefix, force) {
                 Ok(success) => if success {
-                    info!("package {} successfully installed at revision {} in {}", package, revision, prefix.display());
+                    info!("package {:?} successfully installed in {}", package.name(), prefix.display());
                     Ok(success)
                 } else {
                     Err(CommandError::String(format!(
-                        "package {} was not successfully installed at revision {} in {}, check the logs for warnings/errors",
-                        package,
-                        revision,
+                        "package {:?} was not successfully installed in {}, check the logs for warnings/errors",
+                        &package,
                         prefix.display()
                     )))
                 },
                 Err(e) => {
-                    error!("could not install package \"{}\" at revision {}: {}", package, revision, e);
+                    error!("could not install package \"{:?}\": {}", &package, e);
 
                     Err(e)
                 },
