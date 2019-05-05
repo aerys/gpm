@@ -13,6 +13,7 @@ pub enum CommandError {
     IO(io::Error),
     Git(git2::Error),
     String(String),
+    NoMatchingVersion(),
 }
 
 impl From<io::Error> for CommandError {
@@ -38,6 +39,7 @@ impl fmt::Display for CommandError {
         match self {
             CommandError::IO(e) => write!(f, "{}", e),
             CommandError::Git(s) => write!(f, "{}", s),
+            CommandError::NoMatchingVersion() => write!(f, "no matching version"),
             CommandError::String(s) => write!(f, "{}", s),
         }
     }

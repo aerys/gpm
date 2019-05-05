@@ -171,9 +171,7 @@ pub fn find_or_init_repo(
                         Ok(Some((repo, refspec)))
                     },
                 },
-                // We could not find the revision in the specified remote.
-                // So we make the repo throw an error on purpose:
-                None => Err(CommandError::Git(repo.refname_to_id(package.version().raw()).err().unwrap()))
+                None => Err(CommandError::NoMatchingVersion())
             }
         },
         None => {
