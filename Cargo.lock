@@ -510,7 +510,7 @@ dependencies = [
 
 [[package]]
 name = "gpm"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "console 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
