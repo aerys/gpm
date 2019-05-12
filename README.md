@@ -177,7 +177,7 @@ Your `hello-world/1.0` package is now installed and you can run it with `sh ~/he
 
 ## 4. Authentication
 
-`gpm` will behave a lot lit `git` regarding authentication.
+`gpm` will behave a lot like `git` regarding authentication.
 
 If the repository is "public", then no authentication should be required.
 
@@ -510,7 +510,7 @@ GPM can be used to leverage any Git repository as a package repository.
 Platforms like GitLab and GitHub are then very handy to manage such package archives, permissions, etc...
 
 GPM is also available as an all-in-one static binary.
-It can be leveraged to download some packages that will be used to bootrasp a more complex provisioing process.
+It can be leveraged to download some packages that will be used to bootstrap a more complex provisioning process.
 
 ### 11.2. Why Git? Why not just `curl` or `wget` or whatever?
 
