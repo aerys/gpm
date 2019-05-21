@@ -86,6 +86,11 @@ pub fn extract_package(
 ) -> Result<(u32, u32), io::Error> {
     debug!("attempting to extract package archive {} in {}", path.display(), prefix.display());
 
+    if !prefix.exists() && force {
+        debug!("--force is used: creating missing path {:?}", prefix);
+        fs::create_dir_all(prefix).expect("unable to create directory");
+    }
+
     let pb = ProgressBar::new(0);
     pb.set_style(ProgressStyle::default_spinner()
         .template("{spinner:.green} [{elapsed_precise}] {wide_msg}"));
