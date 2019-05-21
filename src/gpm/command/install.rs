@@ -148,16 +148,10 @@ impl Command for InstallPackageCommand {
         let force = args.is_present("force");
         let prefix = path::Path::new(args.value_of("prefix").unwrap());
 
-        if !prefix.exists() {
-            if !force {
-                error!("path {:?} (passed via --prefix) does not exist", prefix);
-                std::process::exit(1);
-            } else {
-                debug!("--force is used: creating missing path {:?}", prefix);
-                fs::create_dir_all(prefix).expect("unable to create directory");
-            }
-        }
-        if !prefix.is_dir() {
+        if !prefix.exists() && !force {
+            error!("path {:?} (passed via --prefix) does not exist, use --force to create it", prefix);
+            std::process::exit(1);
+        } else if prefix.exists() && !prefix.is_dir() {
             Err(CommandError::String(format!("path {:?} (passed via --prefix) is not a directory", prefix)))
         } else {
             let package = Package::parse(&String::from(args.value_of("package").unwrap()));
