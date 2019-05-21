@@ -171,6 +171,18 @@ impl Package {
         }
     }
 
+    pub fn find(&self, repo: &git2::Repository) -> Option<String> {
+        match self.find_matching_refspec(repo) {
+            Some(refspec) => if self.archive_is_in_repository(repo) {
+                Some(refspec)
+            }
+            else {
+                None
+            },
+            None => None
+        }
+    }
+
     pub fn archive_is_in_repository(&self, repo: &git2::Repository) -> bool {
         let mut path = repo.workdir().unwrap().to_owned();
 

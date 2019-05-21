@@ -145,7 +145,7 @@ pub fn find_or_init_repo(
                 gpm::git::pull_repo(&repo).map_err(CommandError::Git)?;
             }
 
-            match package.find_matching_refspec(&repo) {
+            match package.find(&repo) {
                 Some(refspec) => match find_package_tag(package, &repo, &refspec)? {
                     Some(tag_refspec) => {
                         println!(
@@ -278,7 +278,7 @@ pub fn find_repo_by_package_and_revision(
         repo.set_head("refs/heads/master")?;
         repo.checkout_head(Some(&mut builder))?;
 
-        match package.find_matching_refspec(&repo) {
+        match package.find(&repo) {
             Some(refspec) => {
                 debug!("found with refspec {}", refspec);
 
