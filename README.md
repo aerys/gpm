@@ -48,7 +48,7 @@ A statically linked, native, platform agnostic Git-based package manager written
 ## 1. Install
 
 * Linux: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-linux64/gpm-linux64.tar.gz | tar xvz`
-* Windows: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz | tar xvz`
+* Windows: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz | tar xvzf -`
 
 ## 2. Build
 
