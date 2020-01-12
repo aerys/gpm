@@ -50,7 +50,7 @@ pub trait Command {
     fn run(&self, args: &ArgMatches) -> Result<bool, CommandError>;
 }
 
-pub fn commands() -> Vec<Box<Command>> {
+pub fn commands() -> Vec<Box<dyn Command>> {
     vec![
         Box::new(install::InstallPackageCommand {}),
         Box::new(download::DownloadPackageCommand {}),

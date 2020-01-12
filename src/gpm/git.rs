@@ -23,13 +23,17 @@ pub fn get_git_credentials_callback(
     let url : Url = remote.parse().unwrap();
     let host = String::from(url.host_str().unwrap());
 
-    move |_user: &str, _user_from_url: Option<&str>, _cred: git2::CredentialType| -> Result<git2::Cred, git2::Error> {
-        let user = _user_from_url.unwrap_or("git");
+    move |_user: &str, user_from_url: Option<&str>, cred: git2::CredentialType| -> Result<git2::Cred, git2::Error> {
+        trace!("entering git credentials callback");
 
-        if _cred.contains(git2::CredentialType::USERNAME) {
+        let user = user_from_url.unwrap_or("git");
+
+        if cred.contains(git2::CredentialType::USERNAME) {
+            debug!("using username from URI");
             return git2::Cred::username(user);
         }
 
+        debug!("using username from URI");
         let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host);
         let (has_pass, passphrase) = match passphrase {
             Some(p) => (true, p),
@@ -50,15 +54,18 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
 
     let mut callbacks = git2::RemoteCallbacks::new();
     let mut origin_remote = repo.find_remote("origin")?;
+    trace!("setup git credentials callback");
     callbacks.credentials(gpm::git::get_git_credentials_callback(&String::from(origin_remote.url().unwrap())));
 
     let oid = repo.refname_to_id("refs/remotes/origin/master")?;
     let object = repo.find_object(oid, None)?;
+    trace!("reset master to HEAD");
     repo.reset(&object, git2::ResetType::Hard, None)?;
 
     let mut builder = git2::build::CheckoutBuilder::new();
     builder.force();
     repo.set_head("refs/heads/master")?;
+    trace!("checkout head");
     repo.checkout_head(Some(&mut builder))?;
 
     debug!("reset head to master");
@@ -90,6 +97,7 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
     };
 
     let mut callbacks = git2::RemoteCallbacks::new();
+    trace!("setup git credentials callback");
     callbacks.credentials(gpm::git::get_git_credentials_callback(remote));
 
     let mut opts = git2::FetchOptions::new();
@@ -110,7 +118,11 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
 
             Ok((r, true))
         },
-        Err(e) => Err(CommandError::Git(e))
+        Err(e) => {
+            error!("{:?}", e);
+            dbg!(&e);
+            Err(CommandError::Git(e))
+        }
     }
 }
 
