@@ -109,7 +109,7 @@ pub fn find_ssh_key_for_host(host : &String) -> Option<path::PathBuf> {
     }
 }
 
-pub fn ssh_key_requires_passphrase(buf : &mut io::BufRead) -> bool {
+pub fn ssh_key_requires_passphrase(buf : &mut dyn io::BufRead) -> bool {
     for line in buf.lines() {
         if line.unwrap().contains("ENCRYPTED") {
             return true;
@@ -168,7 +168,7 @@ pub fn get_ssh_key_and_passphrase(host : &String) -> (Option<path::PathBuf>, Opt
     }
 }
 
-pub fn get_ssh_passphrase(buf : &mut io::BufRead, passphrase_prompt : String) -> Option<String> {
+pub fn get_ssh_passphrase(buf : &mut dyn io::BufRead, passphrase_prompt : String) -> Option<String> {
     match ssh_key_requires_passphrase(buf) {
         true => match env::var("GPM_SSH_PASS") {
             Ok(p) => Some(p),
