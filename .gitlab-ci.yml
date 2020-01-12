@@ -1,0 +1,16 @@
+stages:
+  - build
+
+build:linux64:
+  stage: build
+  tags:
+    - virtualbox
+  script:
+    - ./script/build-release.sh gpm
+
+build:windows64:
+  stage: build
+  tags:
+    - windows
+  script:
+    - cargo build --release
