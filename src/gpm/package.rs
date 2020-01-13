@@ -9,6 +9,7 @@ use console::style;
 pub struct PackageVersion {
     raw: String,
     version_req: Option<VersionReq>,
+    latest: bool,
 }
 
 impl PackageVersion {
@@ -19,13 +20,15 @@ impl PackageVersion {
                 Ok(req) => Some(req),
                 Err(_) => None,
             },
+            latest: false,
         }
     }
 
     pub fn latest() -> PackageVersion {
         PackageVersion {
-            raw: String::from("refs/heads/master"),
+            raw: String::new(),
             version_req: None,
+            latest: true,
         }
     }
 
@@ -42,7 +45,7 @@ impl PackageVersion {
     }
 
     pub fn is_latest(&self) -> bool {
-        self.raw == "refs/heads/master"
+        self.latest
     }
 }
 
@@ -161,13 +164,21 @@ impl Package {
                 }
             });
 
-            tag_names
-                .into_iter()
-                .filter(|tag| -> bool {
-                    self.name == tag.0 && self.version.version_req().as_ref().unwrap().matches(&tag.1)
-                })
-                .map(|tag| format!("refs/tags/{}/{}", tag.0, tag.1.to_string()))
-                .last()
+            let tag = if self.version.is_latest() {
+                tag_names.into_iter().last()
+            } else {
+                tag_names
+                    .into_iter()
+                    .filter(|tag| -> bool {
+                        self.name == tag.0 && self.version.version_req().as_ref().unwrap().matches(&tag.1)
+                    })
+                    .last()
+            };
+
+            match tag {
+                Some(tag) => Some(format!("refs/tags/{}/{}", tag.0, tag.1.to_string())),
+                None => None,
+            }
         }
     }
 
