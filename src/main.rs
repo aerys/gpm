@@ -60,10 +60,11 @@ fn main() {
             Some(command_args) => {
                 match (*command).run(command_args) {
                     Ok(_) => {
-                        
+                        // nothing
                     },
                     Err(e) => {
                         error!("command failed with error {:?}", e);
+                        std::process::exit(1);
                     }
                 };
                 break;
