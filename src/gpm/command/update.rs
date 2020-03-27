@@ -7,7 +7,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use clap::{ArgMatches};
 
 use crate::gpm;
-use crate::gpm::command::{Command, CommandError};
+use crate::gpm::command::{Command, CommandError, CommandResult};
 
 pub struct UpdatePackageRepositoriesCommand {
 }
@@ -21,7 +21,7 @@ impl UpdatePackageRepositoriesCommand {
             gpm::style::command(&String::from("Updating")),
         );
 
-        let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
+        let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IOError)?;
         let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
 
         if !source_file_path.exists() || !source_file_path.is_file() {
@@ -98,7 +98,7 @@ impl Command for UpdatePackageRepositoriesCommand {
         args.subcommand_matches("update")
     }
 
-    fn run(&self, _args: &ArgMatches) -> Result<bool, CommandError> {
+    fn run(&self, _args: &ArgMatches) -> CommandResult {
         match self.run_update() {
             Ok(success) => {
                 if success {

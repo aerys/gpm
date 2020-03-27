@@ -5,7 +5,7 @@ use url::{Url};
 use semver::{Version, VersionReq};
 use console::style;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PackageVersion {
     raw: String,
     version_req: Option<VersionReq>,
@@ -55,7 +55,7 @@ impl fmt::Display for PackageVersion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Package {
     remote: Option<String>,
     name: String,

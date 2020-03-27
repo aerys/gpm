@@ -91,7 +91,7 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
     match path.parent() {
         Some(parent) => if !parent.exists() {
             debug!("create missing parent directory {}", parent.display());
-            fs::create_dir_all(parent).map_err(CommandError::IO)?;
+            fs::create_dir_all(parent).map_err(CommandError::IOError)?;
         },
         None => ()
     };
@@ -121,13 +121,13 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
         Err(e) => {
             error!("{:?}", e);
             dbg!(&e);
-            Err(CommandError::Git(e))
+            Err(CommandError::GitError(e))
         }
     }
 }
 
 pub fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
-    let cache = gpm::file::get_or_init_cache_dir().map_err(CommandError::IO)?;
+    let cache = gpm::file::get_or_init_cache_dir().map_err(CommandError::IOError)?;
     let hash = {
         let mut hasher = Hasher::new(Algorithm::SHA256);
 
@@ -147,14 +147,14 @@ pub fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, Comma
 
 pub fn find_or_init_repo(
     package: &Package,
-) -> Result<Option<(git2::Repository, String)>, CommandError> {
+) -> Result<(git2::Repository, String), CommandError> {
 
     match package.remote() {
         Some(remote) => {
             let (repo, is_new_repo) = gpm::git::get_or_clone_repo(&remote)?;
 
             if !is_new_repo {
-                gpm::git::pull_repo(&repo).map_err(CommandError::Git)?;
+                gpm::git::pull_repo(&repo).map_err(CommandError::GitError)?;
             }
 
             match package.find(&repo) {
@@ -169,7 +169,7 @@ pub fn find_or_init_repo(
                             gpm::style::refspec(&tag_refspec),
                         );
 
-                        Ok(Some((repo, tag_refspec)))
+                        Ok((repo, tag_refspec))
                     },
                     None => {
                         println!(
@@ -180,10 +180,10 @@ pub fn find_or_init_repo(
                             gpm::style::refspec(&refspec),
                         );
 
-                        Ok(Some((repo, refspec)))
+                        Ok((repo, refspec))
                     },
                 },
-                None => Err(CommandError::NoMatchingVersion())
+                None => Err(CommandError::NoMatchingVersionError { package: package.clone() })
             }
         },
         None => {
@@ -258,8 +258,8 @@ pub fn find_last_commit_id(
 
 pub fn find_repo_by_package_and_revision(
     package : &Package,
-) -> Result<Option<(git2::Repository, String)>, CommandError> {
-    let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IO)?;
+) -> Result<(git2::Repository, String), CommandError> {
+    let dot_gpm_dir = gpm::file::get_or_init_dot_gpm_dir().map_err(CommandError::IOError)?;
     let source_file_path = dot_gpm_dir.to_owned().join("sources.list");
     let file = fs::File::open(source_file_path)?;
     let mut remotes = Vec::new();
@@ -280,7 +280,7 @@ pub fn find_repo_by_package_and_revision(
         debug!("searching in repository {}", remote);
 
         let path = gpm::git::remote_url_to_cache_path(&remote)?;
-        let repo = git2::Repository::open(path).map_err(CommandError::Git)?;
+        let repo = git2::Repository::open(path).map_err(CommandError::GitError)?;
 
         pb.inc(1);
         pb.set_message(&remote);
@@ -307,7 +307,7 @@ pub fn find_repo_by_package_and_revision(
                             gpm::style::refspec(&tag_name),
                         );
                         
-                        return Ok(Some((repo, tag_name)));
+                        return Ok((repo, tag_name));
                     },
                     None => {
                         println!(
@@ -318,7 +318,7 @@ pub fn find_repo_by_package_and_revision(
                             gpm::style::refspec(&refspec),
                         );
 
-                        return Ok(Some((repo, refspec)));
+                        return Ok((repo, refspec));
                     },
                 }
             },
@@ -329,7 +329,9 @@ pub fn find_repo_by_package_and_revision(
         };
     }
 
-    Ok(None)
+    debug!("all repositories have been searched");
+
+    Err(CommandError::NoMatchingVersionError { package: package.clone() })
 }
 
 fn find_package_tag(
@@ -348,9 +350,9 @@ fn find_package_tag(
         let package_commit_id = find_last_commit_id(
             &package.get_archive_path(None),
             &repo,
-        ).map_err(CommandError::Git)?;
+        ).map_err(CommandError::GitError)?;
 
-        match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::Git)? {
+        match commit_to_tag_name(&repo, &package_commit_id).map_err(CommandError::GitError)? {
             Some(tag_name) => {
                 return Ok(Some(format!("refs/tags/{}", tag_name)));
             },

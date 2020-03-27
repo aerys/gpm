@@ -63,7 +63,7 @@ fn main() {
                         // nothing
                     },
                     Err(e) => {
-                        error!("command failed with error {:?}", e);
+                        error!("command failed with error: {}", e);
                         std::process::exit(1);
                     }
                 };
