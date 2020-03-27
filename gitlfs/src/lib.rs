@@ -141,7 +141,7 @@ pub mod lfs {
             };
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::blocking::Client::new();
         let url: Url = format!("{}/objects/batch", url).parse().unwrap();
         let mut req = client.post(url.to_owned());
 
@@ -161,7 +161,7 @@ pub mod lfs {
 
         trace!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
 
-        let mut res = req.send()?;
+        let res = req.send()?;
 
         if !res.status().is_success() {
             return Err(Error::LFSServerError {
@@ -171,10 +171,6 @@ pub mod lfs {
         }
 
         let data = json::parse(res.text().unwrap().as_str())?;
-
-        if !res.status().is_success() {
-            warn!("error message: {}", res.text().unwrap());
-        }
 
         trace!("response from LFS server:\n{}", data.pretty(2));
 
@@ -315,7 +311,7 @@ pub mod lfs {
     ) -> Result<(), Error> {
         debug!("start downloading LFS object");
 
-        let client = reqwest::Client::new();
+        let client = reqwest::blocking::Client::new();
         let mut req = client.get(url);
 
         if auth_token.is_some() {
