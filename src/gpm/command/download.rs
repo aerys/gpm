@@ -104,7 +104,7 @@ impl DownloadPackageCommand {
                 &mut progress,
                 key,
                 passphrase,
-            ).map_err(CommandError::IOError)?;
+            ).map_err(CommandError::GitLFSError)?;
 
             pb.finish();
         } else {

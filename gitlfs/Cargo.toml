@@ -5,8 +5,9 @@ authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 
 [dependencies]
 url = "1.7.1"
-ssh2 = "0.3"
+ssh2 = "0.8.0"
 json = "0.11.13"
 reqwest = "0.9.11"
 log = "0.4.6"
 crypto-hash = "0.3.3"
+err-derive = "0.2.3"

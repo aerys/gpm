@@ -4,6 +4,7 @@ use std::path;
 use git2;
 use clap::{ArgMatches};
 use err_derive::Error;
+use gitlfs::lfs;
 
 use crate::gpm::package::Package;
 
@@ -17,6 +18,8 @@ pub enum CommandError {
     IOError(#[error(source)] io::Error),
     #[error(display = "git error")]
     GitError(#[error(source)] git2::Error),
+    #[error(display = "Git LFS error")]
+    GitLFSError(#[error(source)] lfs::Error),
     #[error(display = "no matching version for package {}", package)]
     NoMatchingVersionError { package: Package },
     #[error(display = "the path {:?} (passed via --prefix) does not exist, use --force to create it", prefix)]
