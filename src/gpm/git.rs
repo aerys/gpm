@@ -40,12 +40,10 @@ pub fn get_git_credentials_callback(
             None => (false, String::new()),
         };
 
-        let key = match key {
-            Some(k) => k,
-            None => panic!("failed authentication for repository {}", &host),
-        };
-
-        git2::Cred::ssh_key(user, None, &key, if has_pass { Some(passphrase.as_str()) } else { None })
+        match key {
+            Some(k) => git2::Cred::ssh_key(user, None, &k, if has_pass { Some(passphrase.as_str()) } else { None }),
+            None => git2::Cred::default(),
+        }
     }
 }
 
