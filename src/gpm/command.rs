@@ -7,6 +7,7 @@ use err_derive::Error;
 use gitlfs::lfs;
 
 use crate::gpm::package::Package;
+use crate::gpm::ssh;
 
 pub mod install;
 pub mod download;
@@ -14,11 +15,11 @@ pub mod update;
 
 #[derive(Debug, Error)]
 pub enum CommandError {
-    #[error(display = "IO error")]
+    #[error(display = "IO error: {}", _0)]
     IOError(#[error(source)] io::Error),
-    #[error(display = "git error")]
+    #[error(display = "git error: {}", _0)]
     GitError(#[error(source)] git2::Error),
-    #[error(display = "Git LFS error")]
+    #[error(display = "Git LFS error: {}", _0)]
     GitLFSError(#[error(source)] lfs::Error),
     #[error(display = "no matching version for package {}", package)]
     NoMatchingVersionError { package: Package },
@@ -28,6 +29,8 @@ pub enum CommandError {
     PrefixIsNotDirectoryError { prefix: path::PathBuf },
     #[error(display = "package {} was not successfully installed, check the logs for warnings/errors", package)]
     PackageNotInstalledError { package: Package },
+    #[error(display = "SSH config parser error: {}", _0)]
+    SSHConfigParserError(#[error(source)] pest::error::Error<ssh::Rule>),
 }
 
 type CommandResult = std::result::Result<bool, CommandError>;
