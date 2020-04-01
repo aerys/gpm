@@ -7,11 +7,13 @@ use std::io::prelude::*;
 
 use pest::Parser;
 
+use crate::gpm::command;
+
 #[derive(Parser)]
 #[grammar = "gpm/ssh_config.pest"]
 pub struct SSHConfigParser;
 
-pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf>, io::Error> {
+pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf>, command::CommandError> {
     match dirs::home_dir() {
         Some(home_path) => {
             let mut ssh_config_path = path::PathBuf::from(home_path);
@@ -26,8 +28,7 @@ pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf
 
             trace!("parsing {:?} to find host {}", ssh_config_path, host);
 
-            let pairs = SSHConfigParser::parse(Rule::config, &contents)
-                .unwrap_or_else(|e| panic!("{}", e));
+            let pairs = SSHConfigParser::parse(Rule::config, &contents)?;
 
             for pair in pairs {
                 let mut inner_pairs = pair.into_inner().flatten();

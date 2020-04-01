@@ -14,6 +14,8 @@ extern crate url;
 
 extern crate crypto_hash;
 
+extern crate err_derive;
+
 pub mod lfs {
     use json;
 
@@ -32,6 +34,26 @@ pub mod lfs {
     use std::fs;
 
     use crypto_hash::{Hasher, Algorithm};
+
+    use err_derive::Error;
+
+    #[derive(Debug, Error)]
+    pub enum Error {
+        #[error(display = "IO error: {}", _0)]
+        IOError(#[error(source)] io::Error),
+        #[error(display = "HTTP request error: {}", _0)]
+        HTTPRequestError(#[error(source)] reqwest::Error),
+        #[error(display = "LFS server error {}: {}", code, message)]
+        LFSServerError { code: reqwest::StatusCode, message: String },
+        #[error(display = "could not get LFS download link, error {}: {}", code, message)]
+        LFSDownloadLinkError { code: u32, message: String },
+        #[error(display = "JSON error: {}", _0)]
+        JSONParsingError(#[error(source)] json::Error),
+        #[error(display = "invalid LFS object signature: expected {}, got {}", expected, got)]
+        InvalidLFSObjectSignature { expected: String, got: String },
+        #[error(display = "SSH error: {}", _0)]
+        SSHError(#[error(source)] ssh2::Error),
+    }
 
     pub fn get_oid<R: Read + Seek>(p : &mut R) -> String {
         p.seek(io::SeekFrom::Start(0)).unwrap();
@@ -100,7 +122,7 @@ pub mod lfs {
         refspec : Option<String>,
         url : String,
         auth_token : Option<String>,
-    ) -> Result<(Option<String>, String), reqwest::Error> {
+    ) -> Result<(Option<String>, String), Error> {
         // https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md
         let mut payload = object!{
             "operation" => "download",
@@ -119,8 +141,8 @@ pub mod lfs {
             };
         }
 
-        let client = reqwest::Client::new();
-        let url : Url = format!("{}/objects/batch", url).parse().unwrap();
+        let client = reqwest::blocking::Client::new();
+        let url: Url = format!("{}/objects/batch", url).parse().unwrap();
         let mut req = client.post(url.to_owned());
 
         req = req.body(payload.to_string())
@@ -139,36 +161,33 @@ pub mod lfs {
 
         trace!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
 
-        let mut res = req.send()?;
+        let res = req.send()?;
 
         if !res.status().is_success() {
-            warn!("LFS server responded with error code {}:\n{}", res.status(), res.text().unwrap());
+            return Err(Error::LFSServerError {
+                code: res.status(),
+                message: res.text().unwrap(),
+            });
         }
 
-        let data = json::parse(res.text().unwrap().as_str())
-            .expect("failed at parsing LFS server response");
-
-        if !res.status().is_success() {
-            warn!("error message: {}", res.text().unwrap());
-        }
+        let data = json::parse(res.text().unwrap().as_str())?;
 
         trace!("response from LFS server:\n{}", data.pretty(2));
 
         if !data["objects"][0]["error"].is_empty() {
-            panic!(
-                "could not get LFS download link: {} {}",
-                data["objects"][0]["error"]["code"].as_u32().unwrap(),
-                data["objects"][0]["error"]["message"].as_str().unwrap(),
-            );
+            Err(Error::LFSDownloadLinkError {
+                code: data["objects"][0]["error"]["code"].as_u32().unwrap(),
+                message: data["objects"][0]["error"]["message"].as_str().unwrap().to_string(),
+            })
+        } else {
+            let auth_token = match data["objects"][0]["actions"]["download"]["header"]["Authorization"].as_str() {
+                Some(s) => Some(String::from(s)),
+                None => None,
+            };
+            let url = String::from(data["objects"][0]["actions"]["download"]["href"].as_str().unwrap());
+    
+            Ok((auth_token, url))
         }
-
-        let auth_token = match data["objects"][0]["actions"]["download"]["header"]["Authorization"].as_str() {
-            Some(s) => Some(String::from(s)),
-            None => None,
-        };
-        let url = String::from(data["objects"][0]["actions"]["download"]["href"].as_str().unwrap());
-
-        Ok((auth_token, url))
     }
 
     pub fn resolve_lfs_link<W: Write + Read + Seek>(
@@ -178,33 +197,25 @@ pub mod lfs {
         target: &mut W,
         private_key : Option<path::PathBuf>,
         passphrase : Option<String>,
-    ) -> Result<bool, io::Error> {
+    ) -> Result<bool, Error> {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
             None => return Ok(false),
         };
-        let (auth_token, url) = match get_lfs_auth_token(repository, "download", private_key, passphrase) {
-            Ok((t, u)) => (t, u),
-            Err(e) => panic!("unable to get LFS batch authorization token: {}", e),
-        };
-        let (auth_token, url) = match get_lfs_download_link(&oid, &size, refspec, url, auth_token) {
-            Ok((h, u)) => (h, u),
-            Err(e) => panic!("unable to fetch LFS download link: {}", e),
-        };
+        let (auth_token, url) = get_lfs_auth_token(repository, "download", private_key, passphrase)?;
+        let (auth_token, url) = get_lfs_download_link(&oid, &size, refspec, url, auth_token)?;
 
-        match download_lfs_object(target, auth_token, &url) {
-            Ok(()) => {
-                let target_oid = get_oid(target);
+        download_lfs_object(target, auth_token, &url)?;
 
-                if target_oid == oid {
-                    Ok(true)
-                } else {
-                    error!("invalid signature: expected {}, got {}", oid, target_oid);
+        let target_oid = get_oid(target);
 
-                    panic!("invalid archive signature")
-                }
-            },
-            Err(e) => panic!("failed to donwload LFS object: {}", e),
+        if target_oid == oid {
+            Ok(true)
+        } else {
+            Err(Error::InvalidLFSObjectSignature {
+                expected: oid,
+                got: target_oid,
+            })
         }
     }
 
@@ -223,7 +234,7 @@ pub mod lfs {
         op : &str,
         private_key : Option<path::PathBuf>,
         passphrase : Option<String>,
-    ) -> Result<(Option<String>, String), json::Error> {
+    ) -> Result<(Option<String>, String), Error> {
         let host_and_port = format!(
             "{}:{}",
             repository.host_str().unwrap(),
@@ -240,12 +251,12 @@ pub mod lfs {
                 debug!("attempting to fetch Git LFS auth token from {}", host_and_port);
                 debug!("connecting to {}", host_and_port);
 
-                let tcp = TcpStream::connect(host_and_port).unwrap();
-                let mut sess = Session::new().unwrap();
+                let tcp = TcpStream::connect(host_and_port)?;
+                let mut sess = Session::new()?;
                 
                 debug!("SSH session handshake");
-                sess.handshake(&tcp).unwrap();
-
+                sess.set_tcp_stream(tcp);
+                sess.handshake()?;
 
                 let (has_pass, pass) = match passphrase {
                     Some(p) => (true, p),
@@ -266,13 +277,13 @@ pub mod lfs {
 
                         let path = &repository.path()[1..];
                         let command = format!("git-lfs-authenticate {} {}", path, op);
-                        let mut channel = sess.channel_session().unwrap();
+                        let mut channel = sess.channel_session()?;
                         
                         debug!("execute \"{}\" command over SSH", command);
-                        channel.exec(&command).expect("error while running the git-lfs-authenticate command via SSH");
+                        channel.exec(&command)?;
 
                         let mut s = String::new();
-                        channel.read_to_string(&mut s).unwrap();
+                        channel.read_to_string(&mut s)?;
                         channel.wait_close().expect("error while waiting for SSH channel to close");
 
                         let json = json::parse(&s)?;
@@ -297,10 +308,10 @@ pub mod lfs {
         target : &mut W,
         auth_token : Option<String>,
         url : &String,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), Error> {
         debug!("start downloading LFS object");
 
-        let client = reqwest::Client::new();
+        let client = reqwest::blocking::Client::new();
         let mut req = client.get(url);
 
         if auth_token.is_some() {
@@ -309,13 +320,10 @@ pub mod lfs {
 
         let mut res = req.send()?;
 
-        match io::copy(&mut res, target) {
-            Ok(_) => {
-                debug!("LFS object download complete");
-                
-                Ok(())
-            },
-            Err(e) => panic!("failed to write LFS object: {}", e),
-        }
+        io::copy(&mut res, target)?;
+
+        debug!("LFS object download complete");
+
+        Ok(())
     }
 }

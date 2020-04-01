@@ -10,7 +10,7 @@ use clap::{ArgMatches};
 use gitlfs::lfs;
 
 use crate::gpm;
-use crate::gpm::command::{Command, CommandError};
+use crate::gpm::command::{Command, CommandError, CommandResult};
 use crate::gpm::package::Package;
 
 pub struct DownloadPackageCommand {
@@ -35,22 +35,18 @@ impl DownloadPackageCommand {
             style("[1/2]").bold().dim(),
         );
 
-        let (repo, refspec) = match gpm::git::find_or_init_repo(package)? {
-            Some(repo) => repo,
-            None => panic!("package/revision was not found in any repository"),
-        };
-
+        let (repo, refspec) = gpm::git::find_or_init_repo(package)?;
         let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
         info!("{} found as refspec {} in repository {}", package, &refspec, remote);
 
-        let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
+        let oid = repo.refname_to_id(&refspec).map_err(CommandError::GitError)?;
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
 
         debug!("move repository HEAD to {}", refspec);
-        repo.set_head_detached(oid).map_err(CommandError::Git)?;
-        repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
+        repo.set_head_detached(oid).map_err(CommandError::GitError)?;
+        repo.checkout_head(Some(&mut builder)).map_err(CommandError::GitError)?;
 
         let package_path = package.get_archive_path(Some(path::PathBuf::from(repo.workdir().unwrap())));
         let cwd_package_path = env::current_dir().unwrap().join(&package.get_archive_filename());
@@ -108,11 +104,11 @@ impl DownloadPackageCommand {
                 &mut progress,
                 key,
                 passphrase,
-            ).map_err(CommandError::IO)?;
+            ).map_err(CommandError::GitLFSError)?;
 
             pb.finish();
         } else {
-            fs::copy(package_path, cwd_package_path).map_err(CommandError::IO)?;
+            fs::copy(package_path, cwd_package_path).map_err(CommandError::IOError)?;
         }
 
         // ? FIXME: reset back to HEAD?
@@ -128,7 +124,7 @@ impl Command for DownloadPackageCommand {
         args.subcommand_matches("download")
     }
 
-    fn run(&self, args: &ArgMatches) -> Result<bool, CommandError> {
+    fn run(&self, args: &ArgMatches) -> CommandResult {
         let force = args.is_present("force");
         let package = Package::parse(&String::from(args.value_of("package").unwrap()));
 

@@ -10,7 +10,7 @@ use clap::{ArgMatches};
 use gitlfs::lfs;
 
 use crate::gpm;
-use crate::gpm::command::{Command, CommandError};
+use crate::gpm::command::{Command, CommandError, CommandResult};
 use crate::gpm::package::Package;
 
 pub struct InstallPackageCommand {
@@ -36,21 +36,18 @@ impl InstallPackageCommand {
             style("[1/3]").bold().dim(),
         );
 
-        let (repo, refspec) = match gpm::git::find_or_init_repo(&package)? {
-            Some(repo) => repo,
-            None => panic!("package/revision was not found in any repository"),
-        };
+        let (repo, refspec) = gpm::git::find_or_init_repo(&package)?;
         let remote = repo.find_remote("origin")?.url().unwrap().to_owned();
 
         info!("revision {:?} found as refspec {} in repository {}", package.version(), &refspec, remote);
 
-        let oid = repo.refname_to_id(&refspec).map_err(CommandError::Git)?;
+        let oid = repo.refname_to_id(&refspec).map_err(CommandError::GitError)?;
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
 
         debug!("move repository HEAD to {}", &refspec);
-        repo.set_head_detached(oid).map_err(CommandError::Git)?;
-        repo.checkout_head(Some(&mut builder)).map_err(CommandError::Git)?;
+        repo.set_head_detached(oid).map_err(CommandError::GitError)?;
+        repo.checkout_head(Some(&mut builder)).map_err(CommandError::GitError)?;
 
         let workdir = repo.workdir().unwrap();
         let package_filename = format!("{}.tar.gz", package.name());
@@ -65,7 +62,7 @@ impl InstallPackageCommand {
 
             info!("start downloading archive {} from LFS", package_filename);
 
-            let tmp_dir = tempdir().map_err(CommandError::IO)?;
+            let tmp_dir = tempdir().map_err(CommandError::IOError)?;
             let tmp_package_path = tmp_dir.path().to_owned().join(&package_filename);
             let remote_url : Url = remote.parse().unwrap();
             // If we have a username/password in the remote URL, we assume we can use
@@ -102,7 +99,7 @@ impl InstallPackageCommand {
                 &mut progress,
                 key,
                 passphrase,
-            ).map_err(CommandError::IO)?;
+            ).map_err(CommandError::GitLFSError)?;
 
             pb.finish();
             
@@ -112,7 +109,7 @@ impl InstallPackageCommand {
                 prefix,
             );
 
-            gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IO)?
+            gpm::file::extract_package(&tmp_package_path, &prefix, force).map_err(CommandError::IOError)?
         } else {
             warn!("package {} does not use LFS", package.name());
 
@@ -122,7 +119,7 @@ impl InstallPackageCommand {
                 prefix,
             );
 
-            gpm::file::extract_package(&package_path, &prefix, force).map_err(CommandError::IO)?
+            gpm::file::extract_package(&package_path, &prefix, force).map_err(CommandError::IOError)?
         };
 
         if total == 0 {
@@ -144,15 +141,14 @@ impl Command for InstallPackageCommand {
         args.subcommand_matches("install")
     }
 
-    fn run(&self, args: &ArgMatches) -> Result<bool, CommandError> {
+    fn run(&self, args: &ArgMatches) -> CommandResult {
         let force = args.is_present("force");
         let prefix = path::Path::new(args.value_of("prefix").unwrap());
 
         if !prefix.exists() && !force {
-            error!("path {:?} (passed via --prefix) does not exist, use --force to create it", prefix);
-            std::process::exit(1);
+            Err(CommandError::PrefixNotFoundError { prefix: prefix.to_path_buf() })
         } else if prefix.exists() && !prefix.is_dir() {
-            Err(CommandError::String(format!("path {:?} (passed via --prefix) is not a directory", prefix)))
+            Err(CommandError::PrefixIsNotDirectoryError { prefix: prefix.to_path_buf() })
         } else {
             let package = Package::parse(&String::from(args.value_of("package").unwrap()));
 
@@ -160,18 +156,12 @@ impl Command for InstallPackageCommand {
 
             match self.run_install(&package, &prefix, force) {
                 Ok(success) => if success {
-                    info!("package {:?} successfully installed in {}", package.name(), prefix.display());
+                    info!("package {} successfully installed in {}", package.name(), prefix.display());
                     Ok(success)
                 } else {
-                    Err(CommandError::String(format!(
-                        "package {:?} was not successfully installed in {}, check the logs for warnings/errors",
-                        &package,
-                        prefix.display()
-                    )))
+                    Err(CommandError::PackageNotInstalledError { package })
                 },
                 Err(e) => {
-                    error!("could not install package \"{:?}\": {}", &package, e);
-
                     Err(e)
                 },
             }
