@@ -59,7 +59,7 @@ impl DownloadPackageCommand {
         let parsed_lfs_link_data = lfs::parse_lfs_link_file(&package_path);
 
         if parsed_lfs_link_data.is_ok() {
-            let (_oid, size) = parsed_lfs_link_data.unwrap().unwrap();
+            let (oid, size) = parsed_lfs_link_data.unwrap().unwrap();
             let size = size.parse::<usize>().unwrap();
         
             info!("start downloading archive {:?} from LFS", cwd_package_path);
@@ -69,42 +69,40 @@ impl DownloadPackageCommand {
                 style("[2/2]").bold().dim(),
             );
 
-            let remote_url : Url = remote.parse().unwrap();
-            // If we have a username/password in the remote URL, we assume we can use
-            // HTTP basic auth and we don't even try to find SSH credentials.
-            let (key, passphrase) = if remote_url.username() != "" && remote_url.password().is_some() {
-                (None, None)
-            } else {
-                gpm::ssh::get_ssh_key_and_passphrase(&String::from(remote_url.host_str().unwrap()))
-            };
             let file = fs::OpenOptions::new()
                 .write(true)
-                .read(true)
                 .create(true)
                 .truncate(true)
-                .open(&cwd_package_path)
-                .expect("unable to open LFS object target file");
+                .open(&cwd_package_path)?;
             let pb = ProgressBar::new(size as u64);
             pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+                .template("  [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
                 .progress_chars("#>-"));
-            pb.enable_steady_tick(200);
-            let mut progress = gpm::file::FileProgressWriter::new(
-                file,
-                size,
-                |p : usize, _t : usize| {
-                    pb.set_position(p as u64);
-                }
-            );
 
             lfs::resolve_lfs_link(
                 remote.parse().unwrap(),
                 Some(refspec.clone()),
                 &package_path,
-                &mut progress,
-                key,
-                passphrase,
+                &mut pb.wrap_write(file),
+                &|repository: Url| {
+                    let (k, p) = gpm::ssh::get_ssh_key_and_passphrase(
+                        &String::from(repository.host_str().unwrap())
+                    );
+
+                    (k.unwrap(), p)
+                }
             ).map_err(CommandError::GitLFSError)?;
+
+            let mut file = fs::OpenOptions::new()
+                .read(true)
+                .open(&cwd_package_path)?;
+            let archive_oid = lfs::get_oid(&mut file);
+            if archive_oid != oid {
+                return Err(CommandError::InvalidLFSObjectSignature {
+                    expected: oid,
+                    got: archive_oid,
+                })
+            }
 
             pb.finish();
         } else {

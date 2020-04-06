@@ -31,6 +31,8 @@ pub enum CommandError {
     PackageNotInstalledError { package: Package },
     #[error(display = "SSH config parser error: {}", _0)]
     SSHConfigParserError(#[error(source)] pest::error::Error<ssh::Rule>),
+    #[error(display = "invalid LFS object signature: expected {}, got {}", expected, got)]
+    InvalidLFSObjectSignature { expected: String, got: String },
 }
 
 type CommandResult = std::result::Result<bool, CommandError>;

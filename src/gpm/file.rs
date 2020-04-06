@@ -8,50 +8,6 @@ use tar::Archive;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-#[derive(Debug)]
-pub struct FileProgressWriter<F : Fn(usize, usize)> {
-    file : fs::File,
-    total : usize,
-    on_progress : F,
-    progress : usize,
-}
-
-impl<F : Fn(usize, usize)> FileProgressWriter<F> {
-    pub fn new(file : fs::File, total : usize, on_progress : F) -> FileProgressWriter<F> {
-        FileProgressWriter {
-            file,
-            total,
-            on_progress,
-            progress: 0,
-        }
-    }
-}
-
-impl<F : Fn(usize, usize)> io::Write for FileProgressWriter<F> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.progress += buf.len();
-        (self.on_progress)(self.progress, self.total);
-
-        self.file.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.file.flush()
-    }
-}
-
-impl<F : Fn(usize, usize)> io::Read for FileProgressWriter<F> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.file.read(buf)
-    }
-}
-
-impl<F : Fn(usize, usize)> io::Seek for FileProgressWriter<F> {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.file.seek(pos)
-    }
-}
-
 pub fn get_or_init_dot_gpm_dir() -> Result<path::PathBuf, io::Error> {
     let dot_gpm = dirs::home_dir().unwrap().join(".gpm");
 
@@ -126,7 +82,7 @@ pub fn extract_package(
 
     let pb = ProgressBar::new(num_files as u64);
     pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} [{elapsed_precise}] {pos} {wide_msg}"));
+        .template("  [{elapsed_precise}] {pos} {wide_msg}"));
     pb.set_message("extracted files");
     pb.enable_steady_tick(200);
 
@@ -167,7 +123,7 @@ pub fn extract_package(
     }
 
     pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} [{elapsed_precise}] {wide_msg}"));
+        .template("  [{elapsed_precise}] {wide_msg}"));
     pb.finish_with_message(&format!("{}/{} extracted file(s)", num_extracted_files, num_files));
 
     // info!("extracted {}/{} file(s)", num_extracted_files, num_files);
