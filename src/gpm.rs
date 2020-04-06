@@ -1,5 +1,3 @@
-pub use self::file::FileProgressWriter;
-
 pub mod file;
 pub mod command;
 pub mod ssh;
