@@ -1,9 +1,9 @@
 stages:
   - build
   - changelog
-  - source-release
+  - source release
   - publish
-  - package-release
+  - package release
 
 .gpm_publish_template: &gpm_publish_template
   stage: publish
@@ -89,7 +89,7 @@ changelog:
     - gitlab-flow-release --private-token "${RELEASE_PRIVATE_TOKEN}" changelog > CHANGELOG.md
 
 gitlab-source-release:
-  stage: source-release
+  stage: source release
   image: registry.aerys.in/aerys/gitlab-flow-release:latest
   only:
     - tags
@@ -100,7 +100,7 @@ gitlab-source-release:
 
 github-source-release:
   <<: *github_release_template
-  stage: source-release
+  stage: source release
   variables:
     RELEASE_AUTH_TOKEN: ${GITHUB_TOKEN}
     RELEASE_TAG: ${CI_COMMIT_TAG}
@@ -136,7 +136,7 @@ publish:linux64:
 
 github-package-release:windows64:
   <<: *github_release_template
-  stage: package-release
+  stage: package release
   variables:
     RELEASE_AUTH_TOKEN: ${GITHUB_TOKEN}
     RELEASE_TAG: gpm-windows64/${CI_COMMIT_TAG}
@@ -146,7 +146,7 @@ github-package-release:windows64:
 
 github-package-release:linux64:
   <<: *github_release_template
-  stage: package-release
+  stage: package release
   variables:
     RELEASE_AUTH_TOKEN: ${GITHUB_TOKEN}
     RELEASE_TAG: gpm-linux64/${CI_COMMIT_TAG}
