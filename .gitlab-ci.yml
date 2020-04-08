@@ -38,7 +38,7 @@ stages:
       -H "Content-Type:application/json" \
       -H "Authorization: token ${RELEASE_AUTH_TOKEN}" \
       https://api.github.com/repos/${RELEASE_PROJECT}/releases \
-      -d $(
+      -d "$(
           jq -n \
               --arg tag_name "${RELEASE_TAG}" \
               --arg name "${RELEASE_NAME}" \
@@ -50,7 +50,7 @@ stages:
                   draft: false,
                   prerelease: false
               }'
-      )
+      )"
 
 build:linux64:
   stage: build
