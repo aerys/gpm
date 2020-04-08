@@ -33,10 +33,12 @@ A statically linked, native, platform agnostic Git-based package manager written
     - [9.2. `clean`](#92-clean)
     - [9.3. `install`](#93-install)
     - [9.4. `download`](#94-download)
-- [10. CI integration](#10-ci-integration)
+- [10. Integrations](#10-integrations)
     - [10.1. Travis CI](#101-travis-ci)
     - [10.2. AppVeyor](#102-appveyor)
     - [10.3. GitLab CI](#103-gitlab-ci)
+    - [10.4. GitLab Releases](#104-gitlab-releases)
+    - [10.5. GitHub Releases](#105-github-releases)
 - [11. FAQ](#11-faq)
     - [11.1. Why GPM?](#111-why-gpm)
     - [11.2. Why Git? Why not just `curl` or `wget` or whatever?](#112-why-git-why-not-just-curl-or-wget-or-whatever)
@@ -448,7 +450,7 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 gpm download app/2.0 --prefix /var/www/app
 ```
 
-## 10. CI integration
+## 10. Integrations
 
 ### 10.1. Travis CI
 
@@ -464,23 +466,28 @@ Here is a template to publish a package from GitLab CI:
 
 ```yml
 .gpm_publish_template: &gpm_publish_template
-  stage: archive
+  stage: publish
+  image:
+    name: alpine/git:v2.24.1
+    entrypoint: ["/bin/sh", "-c"]
   only:
     - tags
-  variables:
+  resource_group: ${PACKAGE_REPOSITORY}
+  before_script:
+    - apk add git-lfs
+    - git lfs install --skip-repo
   script:
-    - cd ${PACKAGE_ARCHIVE_ROOT} && tar -zcf /tmp/${PACKAGE_NAME}.tar.gz * && cd -
-    - echo "${PACKAGE_REPOSITORY_KEY}" > /tmp/package-repository-key && chmod 700 /tmp/package-repository-key
+    - cd ${PACKAGE_ARCHIVE_ROOT} && tar -zcf /tmp/${PACKAGE_NAME}.tar.gz ${PACKAGE_CONTENT} && cd -
     - mkdir -p ~/.ssh && echo -e "Host *\n  StrictHostKeyChecking no\n  IdentityFile /tmp/package-repository-key" > ~/.ssh/config
     - GIT_LFS_SKIP_SMUDGE=1 git clone ${PACKAGE_REPOSITORY} /tmp/package-repository
     - mkdir -p /tmp/package-repository/${PACKAGE_NAME}
     - mv /tmp/${PACKAGE_NAME}.tar.gz /tmp/package-repository/${PACKAGE_NAME}
     - cd /tmp/package-repository/${PACKAGE_NAME}
-    - git config --global user.email "your@email.com"
-    - git config --global user.name "Your Name"
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global user.name "${GITLAB_USER_NAME}"
     - git add ${PACKAGE_NAME}.tar.gz
     - git commit ${PACKAGE_NAME}.tar.gz -m "Publish ${PACKAGE_NAME} version ${PACKAGE_VERSION}."
-    - git tag ${PACKAGE_NAME}/${PACKAGE_VERSION}
+    - git tag -F "${PACKAGE_CHANGELOG}" "${PACKAGE_NAME}/${PACKAGE_VERSION}"
     - git push
     - git push --tags
 ```
@@ -488,17 +495,122 @@ Here is a template to publish a package from GitLab CI:
 and an example of how to use this template:
 
 ```yml
-gpm-publish:
+publish:
   <<: *gpm_publish_template
   variables:
     PACKAGE_VERSION: ${CI_COMMIT_TAG} # the version of the package
-    PACKAGE_REPOSITORY: ssh://my.gitlab.com/my-packages.git # the package repository to publish to
+    PACKAGE_REPOSITORY: ssh://my.gitlab.com/my-packages-repository.git # the package repository to publish to
     PACKAGE_NAME: ${CI_PROJECT_NAME} # the name of the package
-    PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR} # the folder containing the files to put in the package archive
+    PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR}/bin # the folder containing the files to put in the package archive
+    PACKAGE_CONTENT: * # the globbing pattern/file list to put in the package archive
+    PACKAGE_CHANGELOG: ${CI_PROJECT_DIR}/CHANGELOG.md # the path to the changelog file
 ```
 
 This template relies on the `PACKAGE_REPOSITORY_KEY` GitLab CI variable.
 It must contain a passphrase-less SSH deploy key (with write permissions) to your package repository.
+
+### 10.4. GitLab Releases
+
+Each package can have its changelog available via the [GitLab Releases](https://about.gitlab.com/releases/)
+page of the corresponding GPM package repository.
+
+The following GitLab CI job templates can be used to create a GitLab release
+for a package:
+
+```yml
+.gitlab_release_template: &gitlab_release_template
+  image: alpine:3.11.5
+  only:
+    - tags
+  dependencies:
+    - changelog
+  before_script:
+    - apk add jq curl
+  script: |
+    curl --fail --retry 5 \
+      -X POST \
+      -H 'Content-Type: application/json' \
+      -H "PRIVATE-TOKEN: ${RELEASE_AUTH_TOKEN}" \
+      https://gitlab.example.com/api/v4/projects/${RELEASE_PROJECT_ID}/releases
+      -d "$(
+        jq -n \
+          --arg name "${RELEASE_NAME}" \
+          --arg tag_name "${RELEASE_TAG}" \
+          --arg description "$(cat ${RELEASE_NOTES})" \
+          {
+            name: $name,
+            tag_name: $tag_name,
+            description: $description
+          }
+      )"
+```
+
+with:
+
+* `RELEASE_AUTH_TOKEN`: the GitLab Personal Access Token used for authentication
+* `RELEASE_PROJECT_ID`: the ID of the GitLab package repository project to create the release on (ex: `42`)
+* `RELEASE_TAG`: the tag of the released GPM package (ex: `my-awesome-package/0.42.3`)
+* `RELEASE_NAME`: the name of the released GPM package (ex: `My Awesome Package 0.42.3`)
+* `RELEASE_NOTES`: the path to the changelog file of the released GPM package
+
+Here is an example of a CI job using that template:
+
+```yml
+release:
+  <<: *gitlab_release_template
+  variables:
+    RELEASE_AUTH_TOKEN: ${GITLAB_TOKEN}
+    RELEASE_TAG: my-awesome-package/${CI_COMMIT_TAG}
+    RELEASE_PROJECT_ID: 42
+    RELEASE_NAME: My Awesome Package ${CI_COMMIT_TAG}
+    RELEASE_NOTES: ${CI_PROJECT_DIR}/CHANGELOG.md
+```
+
+### 10.5. GitHub Releases
+
+Each package can have its changelog available via the
+[GitHub Releases](https://help.github.com/en/github/administering-a-repository/managing-releases-in-a-repository)
+page of the corresponding GPM package repository.
+
+The [gpm-packages release page](https://github.com/aerys/gpm-packages/releases) is a good example of such integration.
+
+The following `curl` command can be used to create a release for a package:
+
+```yml
+curl --fail --retry 5 \
+    -X POST \
+    -H "Content-Type:application/json" \
+    -H "Authorization: token ${RELEASE_AUTH_TOKEN}" \
+    https://api.github.com/repos/${RELEASE_PROJECT}/releases \
+    -d "$(
+        jq -n \
+            --arg tag_name "${RELEASE_TAG}" \
+            --arg name "${RELEASE_NAME}" \
+            --arg body "$(cat ${RELEASE_NOTES})" \
+            '{
+                tag_name: $tag_name,
+                name: $name,
+                body: $body,
+                draft: false,
+                prerelease: false
+            }'
+    )"
+```
+
+with:
+
+* `RELEASE_AUTH_TOKEN`: the GitHub Personal Access Token used for authentication
+* `RELEASE_PROJECT`: the namespaced name of the GitHub package repository to create the release on (ex: `aerys/gpm-packages`)
+* `RELEASE_TAG`: the tag of the released GPM package (ex: `my-awesome-package/0.42.3`)
+* `RELEASE_NAME`: the name of the released GPM package (ex: `My Awesome Package 0.42.3`)
+* `RELEASE_NOTES`: the path to the changelog file of the released GPM package
+
+Such release creation mechanism can easily be integrated in the CI.
+
+GPM's own GitLab CI configuration features
+[a reusable job template](https://github.com/aerys/gpm/blob/0.13.3/.gitlab-ci.yml#L33)
+to do exactly that. The result is visible on the
+[release page of the gpm-packages repository](https://github.com/aerys/gpm-packages/releases).
 
 ## 11. FAQ
 
