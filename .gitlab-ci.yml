@@ -7,7 +7,9 @@ stages:
 
 .gpm_publish_template: &gpm_publish_template
   stage: publish
-  image: alpine/git:v2.24.1
+  image:
+    name: alpine/git:v2.24.1
+    entrypoint: ["/bin/sh", "-c"]
   only:
     - tags
   script:
