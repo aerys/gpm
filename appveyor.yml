@@ -95,6 +95,3 @@ build_script:
 
 test_script:
   - .\target\release\gpm.exe -V
-
-deploy_script:
-  - ps: .\script\publish.ps1

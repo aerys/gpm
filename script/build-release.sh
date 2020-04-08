@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Usage: ./build-release <PROJECT>
+# Usage: ./build-release
 #
 # The latest version of this script is available at
 # https://github.com/emk/rust-musl-builder/blob/master/examples/build-release
