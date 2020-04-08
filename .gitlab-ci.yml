@@ -12,6 +12,9 @@ stages:
     entrypoint: ["/bin/sh", "-c"]
   only:
     - tags
+  before_script:
+    - apk add git-lfs
+    - git lfs install --skip-repo
   script:
     - cd ${PACKAGE_ARCHIVE_ROOT} && tar -zcf /tmp/${PACKAGE_NAME}.tar.gz ${PACKAGE_CONTENT} && cd -
     - mkdir -p ~/.ssh && echo -e "Host *\n  StrictHostKeyChecking no\n  IdentityFile /tmp/package-repository-key" > ~/.ssh/config
