@@ -12,6 +12,7 @@ stages:
     entrypoint: ["/bin/sh", "-c"]
   only:
     - tags
+  resource_group: ${PACKAGE_REPOSITORY}
   before_script:
     - apk add git-lfs
     - git lfs install --skip-repo
