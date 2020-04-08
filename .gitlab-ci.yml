@@ -27,7 +27,7 @@ stages:
     - git config --global user.name "${GITLAB_USER_NAME}"
     - git add ${PACKAGE_NAME}.tar.gz
     - git commit ${PACKAGE_NAME}.tar.gz -m "Publish ${PACKAGE_NAME} version ${PACKAGE_VERSION}."
-    - git tag -F "${PACKAGE_CHANGELOG}" "${PACKAGE_NAME}/${PACKAGE_VERSION}"
+    - git tag --cleanup=whitespace -F "${PACKAGE_CHANGELOG}" "${PACKAGE_NAME}/${PACKAGE_VERSION}"
     - git push
     - git push --tags
 
