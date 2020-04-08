@@ -34,7 +34,8 @@ stages:
   before_script:
     - apk add jq curl
   script: |
-    curl -X POST \
+    curl --fail --retry 5\
+      -X POST \
       -H "Content-Type:application/json" \
       -H "Authorization: token ${RELEASE_AUTH_TOKEN}" \
       https://api.github.com/repos/${RELEASE_PROJECT}/releases \
