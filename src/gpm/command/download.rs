@@ -41,6 +41,9 @@ impl DownloadPackageCommand {
         info!("{} found as refspec {} in repository {}", package, &refspec, remote);
 
         let oid = repo.refname_to_id(&refspec).map_err(CommandError::GitError)?;
+
+        package.print_message(oid, &repo);
+
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
 

@@ -164,7 +164,7 @@ pub fn find_or_init_repo(
                             gpm::style::package_extension(&String::from(".tar.gz")),
                             gpm::style::remote_url(&remote),
                             gpm::style::refspec(&refspec),
-                            gpm::style::refspec(&tag_refspec),
+                            gpm::style::refspec(&tag_refspec.replace("refs/tags/", "")),
                         );
 
                         Ok((repo, tag_refspec))
@@ -270,7 +270,7 @@ pub fn find_repo_by_package_and_revision(
 
     let pb = ProgressBar::new(remotes.len() as u64);
     pb.set_style(ProgressStyle::default_spinner()
-        .template("{spinner:.green} [{elapsed_precise}] ({pos}/{len}) {msg}"));
+        .template("  [{elapsed_precise}] ({pos}/{len}) {msg}"));
     pb.set_position(0);
     pb.enable_steady_tick(200);
 
@@ -302,7 +302,7 @@ pub fn find_repo_by_package_and_revision(
                             gpm::style::package_extension(&String::from(".tar.gz")),
                             gpm::style::remote_url(&remote),
                             gpm::style::refspec(&refspec),
-                            gpm::style::refspec(&tag_name),
+                            gpm::style::refspec(&tag_name.replace("refs/tags/", "")),
                         );
                         
                         return Ok((repo, tag_name));
