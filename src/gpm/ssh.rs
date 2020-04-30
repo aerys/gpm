@@ -180,14 +180,6 @@ pub fn get_ssh_passphrase(buf : &mut dyn io::BufRead, passphrase_prompt : String
 
                 trace!("passphrase fetched from command line");
 
-                // https://github.com/conradkdotcom/rpassword/issues/32
-                #[cfg(windows)]
-                {
-                    let t = console::Term::stderr();
-
-                    t.write_line("").unwrap();
-                }
-
                 Some(pass_string)
             }
         },
