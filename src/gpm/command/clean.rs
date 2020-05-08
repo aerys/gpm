@@ -1,13 +1,6 @@
-use std::path;
 use std::fs;
 
-use console::style;
-use tempfile::tempdir;
-use url::{Url};
-use indicatif::{ProgressBar, ProgressStyle};
 use clap::{ArgMatches};
-
-use gitlfs::lfs;
 
 use crate::gpm;
 use crate::gpm::command::{Command, CommandError, CommandResult};

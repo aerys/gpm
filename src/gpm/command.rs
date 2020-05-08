@@ -12,6 +12,7 @@ use crate::gpm::ssh;
 pub mod install;
 pub mod download;
 pub mod update;
+pub mod clean;
 
 #[derive(Debug, Error)]
 pub enum CommandError {
@@ -48,5 +49,6 @@ pub fn commands() -> Vec<Box<dyn Command>> {
         Box::new(install::InstallPackageCommand {}),
         Box::new(download::DownloadPackageCommand {}),
         Box::new(update::UpdatePackageRepositoriesCommand {}),
+	Box::new(clean::CleanCacheCommand {}),
     ]
 }
