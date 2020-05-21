@@ -143,27 +143,27 @@ docker run \
 
 ### 6.1. Creating a package repository
 
-1. Create a [git-lfs](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
-2. [Install git-lfs](https://github.com/git-lfs/git-lfs/wiki/Installation) on your local computer.
+1. Create a [Git LFS](https://git-lfs.github.com/) enabled Git repository, for example a GitHub or GitLab repository.
+2. [Install Git LFS](https://github.com/git-lfs/git-lfs/wiki/Installation) on your local computer.
 3. Clone the newly created repository on your local computer:
 
 ```bash
-Git clone ssh://path.to/my/package-repository.git
+git clone ssh://path.to/my/package-repository.git
 cd package-repository
 ```
 
-4. Enable [git-lfs](https://git-lfs.github.com/) tracking for `*.tar.gz` files:
+4. Enable [Git LFS](https://git-lfs.github.com/) tracking for `*.tar.gz` files:
 
 ```bash
-Git lfs track "*.tar.gz"
+git lfs track "*.tar.gz"
 ```
 
 5. Add, commit and push `.gitattributes`:
 
 ```bash
-Git add .gitattributes
-Git commit .gitattributes -m "Enable git-lfs."
-Git push
+git add .gitattributes
+git commit .gitattributes -m "Enable Git LFS."
+git push
 ```
 
 Voilà! You're all set to publish your first package!
@@ -194,21 +194,21 @@ tar -cvzf hello-world.tar.gz hello-world.sh
 5. Add and commit your package archive:
 
 ```bash
-Git add hello-world.tar.gz
-Git commit hello-world.tar.gz -m "Publish hello-world version 1.0"
+git add hello-world.tar.gz
+git commit hello-world.tar.gz -m "Publish hello-world version 1.0"
 ```
 
 6. Tag your package release with a specific version number:
 
 ```bash
-Git tag hello-world/1.0
+git tag hello-world/1.0
 ```
 
 7. Push your new package:
 
 ```bash
-Git push
-Git push --tags
+git push
+git push --tags
 ```
 
 Your `hello-world/1.0` package is now stored in your package repository and can be installed using `gpm`!
@@ -378,21 +378,21 @@ The following pseudo code explains how GPM will find packages for a specific ver
 
 ```
 if ${package_ref} includes remote URL
-    Git clone URL
+    git clone URL
 
 if ${package_ref} does not include version
     ${package_version} is set to "@master"
 
 for each ${repository} in cache
-    Git checkout master
-    Git reset --hard
+    git checkout master
+    git reset --hard
 
     if ${package_version} is refspec
-        Git checkout ${package_version}
+        git checkout ${package_version}
     else # assume ${package_version} is semver
         for each ${tag} in ${repository}
             if ${tag} matches semver
-                Git checkout ${tag}
+                git checkout ${tag}
     
     if file ${package_name}/${package_name}.tgz exists
         if ${package_name}/${package_name}.tgz is LFS link
@@ -484,7 +484,7 @@ gpm install ssh://github.com/my/awesome-packages.git#app/2.0 \
 ```
 
 ```bash
-# assuming the repository ssh://github.com/my/awesome-packages.Git is in ~/.gpm/sources.list
+# assuming the repository ssh://github.com/my/awesome-packages.git is in ~/.gpm/sources.list
 # and the cache has been updated using `gpm update`
 gpm install app/2.0 --prefix /var/www/app
 ```
@@ -503,7 +503,7 @@ gpm download ssh://github.com/my/awesome-packages.git#app/2.0 \
 ```
 
 ```bash
-# assuming the repository ssh://github.com/my/awesome-packages.Git is in ~/.gpm/sources.list
+# assuming the repository ssh://github.com/my/awesome-packages.git is in ~/.gpm/sources.list
 # and the cache has been updated using `gpm update`
 gpm download app/2.0 --prefix /var/www/app
 ```
@@ -533,21 +533,21 @@ Here is a template to publish a package from GitLab CI:
   resource_group: ${PACKAGE_REPOSITORY}
   before_script:
     - apk add git-lfs
-    - Git lfs install --skip-repo
+    - git lfs install --skip-repo
   script:
     - cd ${PACKAGE_ARCHIVE_ROOT} && tar -zcf /tmp/${PACKAGE_NAME}.tar.gz ${PACKAGE_CONTENT} && cd -
     - mkdir -p ~/.ssh && echo -e "Host *\n  StrictHostKeyChecking no\n  IdentityFile /tmp/package-repository-key" > ~/.ssh/config
-    - GIT_LFS_SKIP_SMUDGE=1 Git clone ${PACKAGE_REPOSITORY} /tmp/package-repository
+    - GIT_LFS_SKIP_SMUDGE=1 git clone ${PACKAGE_REPOSITORY} /tmp/package-repository
     - mkdir -p /tmp/package-repository/${PACKAGE_NAME}
     - mv /tmp/${PACKAGE_NAME}.tar.gz /tmp/package-repository/${PACKAGE_NAME}
     - cd /tmp/package-repository/${PACKAGE_NAME}
-    - Git config --global user.email "${GITLAB_USER_EMAIL}"
-    - Git config --global user.name "${GITLAB_USER_NAME}"
-    - Git add ${PACKAGE_NAME}.tar.gz
-    - Git commit ${PACKAGE_NAME}.tar.gz -m "Publish ${PACKAGE_NAME} version ${PACKAGE_VERSION}."
-    - Git tag -F "${PACKAGE_CHANGELOG}" "${PACKAGE_NAME}/${PACKAGE_VERSION}"
-    - Git push
-    - Git push --tags
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git add ${PACKAGE_NAME}.tar.gz
+    - git commit ${PACKAGE_NAME}.tar.gz -m "Publish ${PACKAGE_NAME} version ${PACKAGE_VERSION}."
+    - git tag -F "${PACKAGE_CHANGELOG}" "${PACKAGE_NAME}/${PACKAGE_VERSION}"
+    - git push
+    - git push --tags
 ```
 
 and an example of how to use this template:
@@ -557,7 +557,7 @@ publish:
   <<: *gpm_publish_template
   variables:
     PACKAGE_VERSION: ${CI_COMMIT_TAG} # the version of the package
-    PACKAGE_REPOSITORY: ssh://my.gitlab.com/my-packages-repository.Git # the package repository to publish to
+    PACKAGE_REPOSITORY: ssh://my.gitlab.com/my-packages-repository.git # the package repository to publish to
     PACKAGE_NAME: ${CI_PROJECT_NAME} # the name of the package
     PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR}/bin # the folder containing the files to put in the package archive
     PACKAGE_CONTENT: * # the globbing pattern/file list to put in the package archive
@@ -699,13 +699,13 @@ With GitLab, you can safely setup [deploy keys](https://docs.gitlab.com/ce/ssh/R
 Yes. Cloning a repository full of large binary files can take a lot of time and space.
 You certainly don't want to checkout all the versions of all your packages everytime you want to install one of them.
 
-That's why you should use [git-lfs](https://git-lfs.github.com/) for your GPM repositories.
+That's why you should use [Git LFS](https://git-lfs.github.com/) for your GPM repositories.
 
-Thanks to [git-lfs](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
+Thanks to [Git LFS](https://git-lfs.github.com/), GPM will download the a actual binary package only when it is required.
 
 ### 14.4. Why storing packages as `*.tar.gz` archives?
 
-Vanilla Git will compress objects. But [git-lfs](https://git-lfs.github.com/) doesn't store objects in the actual Git
+Vanilla Git will compress objects. But [Git LFS](https://git-lfs.github.com/) doesn't store objects in the actual Git
 repository: they are stored "somewhere else".
 
 To make sure we don't use too much disk space/bandwidth "somewhere else", the
