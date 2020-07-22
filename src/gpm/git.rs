@@ -33,7 +33,7 @@ pub fn get_git_credentials_callback(
             return git2::Cred::username(user);
         }
 
-        debug!("using username from URI");
+        debug!("using SSH key");
         let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host);
         let (has_pass, passphrase) = match passphrase {
             Some(p) => (true, p),
