@@ -143,21 +143,27 @@ pub mod lfs {
 
         let client = reqwest::blocking::Client::new();
         let url: Url = format!("{}/objects/batch", url).parse().unwrap();
-        let mut req = client.post(url.to_owned());
+        let username = url.username();
+        let password = url.password();
+        let sanitized_url = {
+            let mut sanitized = url.clone();
+
+            sanitized.set_username("").unwrap();
+            sanitized.set_password(None).unwrap();
+
+            sanitized
+        };
+        let mut req = client.post(sanitized_url.to_owned());
+
+        if username != "" {
+            req = req.basic_auth(username, password);
+        } else if auth_token.is_some() {
+            req = req.header(header::AUTHORIZATION, auth_token.unwrap())
+        }
 
         req = req.body(payload.to_string())
             .header(header::ACCEPT, "application/vnd.git-lfs+json")
             .header(header::CONTENT_TYPE, "application/vnd.git-lfs+json");
-
-        // Having the username/password in the URL is not enough.
-        // We must enable HTTP basic auth explicitely.
-        if url.username() != "" {
-            req = req.basic_auth(url.username(), url.password());
-        }
-
-        if auth_token.is_some() {
-            req = req.header(header::AUTHORIZATION, auth_token.unwrap());
-        }
 
         trace!("sending LFS object batch payload to {}:\n{}", &url, payload.pretty(2));
 
@@ -214,8 +220,8 @@ pub mod lfs {
         debug!("attempting LFS download without further authentication");
 
         match get_lfs_download_link(&oid, &size, refspec.clone(), url, None) {
-            Ok((_, url)) => {
-                download_lfs_object(target, None, &url).map(|_| true)
+            Ok((auth_token, url)) => {
+                download_lfs_object(target, auth_token, &url).map(|_| true)
             },
             // If - and only if - we got a 401 Unauthorized error, we retry
             // using an actual authentication token.
