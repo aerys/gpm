@@ -109,7 +109,7 @@ pub fn extract_package(
             }
         }
 
-        file.unpack_in(prefix).unwrap();
+        file.unpack_in(prefix)?;
 
         debug!(
             "extracted file {} ({} bytes)",
