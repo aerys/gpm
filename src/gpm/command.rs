@@ -16,11 +16,11 @@ pub mod clean;
 
 #[derive(Debug, Error)]
 pub enum CommandError {
-    #[error(display = "IO error: {}", _0)]
+    #[error(display = "IO error")]
     IOError(#[error(source)] io::Error),
-    #[error(display = "git error: {}", _0)]
+    #[error(display = "git error")]
     GitError(#[error(source)] git2::Error),
-    #[error(display = "Git LFS error: {}", _0)]
+    #[error(display = "Git LFS error")]
     GitLFSError(#[error(source)] lfs::Error),
     #[error(display = "no matching version for package {}", package)]
     NoMatchingVersionError { package: Package },
@@ -30,7 +30,7 @@ pub enum CommandError {
     PrefixIsNotDirectoryError { prefix: path::PathBuf },
     #[error(display = "package {} was not successfully installed, check the logs for warnings/errors", package)]
     PackageNotInstalledError { package: Package },
-    #[error(display = "SSH config parser error: {}", _0)]
+    #[error(display = "SSH config parser error")]
     SSHConfigParserError(#[error(source)] pest::error::Error<ssh::Rule>),
     #[error(display = "invalid LFS object signature: expected {}, got {}", expected, got)]
     InvalidLFSObjectSignature { expected: String, got: String },
@@ -49,6 +49,6 @@ pub fn commands() -> Vec<Box<dyn Command>> {
         Box::new(install::InstallPackageCommand {}),
         Box::new(download::DownloadPackageCommand {}),
         Box::new(update::UpdatePackageRepositoriesCommand {}),
-	Box::new(clean::CleanCacheCommand {}),
+        Box::new(clean::CleanCacheCommand {}),
     ]
 }
