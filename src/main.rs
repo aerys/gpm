@@ -10,7 +10,18 @@ extern crate pest_derive;
 
 use dotenv::dotenv;
 
+use std::error::Error;
+
 mod gpm;
+
+fn print_error(e: &dyn Error) {
+    error!("GPM command error: {}", e);
+    let mut cause = e.source();
+    while let Some(e) = cause {
+        error!("caused by: {}", e);
+        cause = e.source();
+    }
+}
 
 fn main() {
     dotenv().ok();
@@ -63,7 +74,7 @@ fn main() {
                         // nothing
                     },
                     Err(e) => {
-                        error!("command failed with error: {}", e);
+                        print_error(&e);
                         std::process::exit(1);
                     }
                 };
