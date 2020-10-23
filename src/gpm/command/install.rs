@@ -88,8 +88,7 @@ impl InstallPackageCommand {
                     );
 
                     (k.unwrap(), p)
-                },
-                Some(format!("gpm/{}", env!("VERGEN_SEMVER"))),
+                }
             ).map_err(CommandError::GitLFSError)?;
 
             let mut file = fs::OpenOptions::new()

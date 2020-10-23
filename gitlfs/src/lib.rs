@@ -122,7 +122,6 @@ pub mod lfs {
         refspec : Option<String>,
         url : String,
         auth_token : Option<String>,
-        user_agent: Option<String>,
     ) -> Result<(Option<String>, String), Error> {
         // https://github.com/git-lfs/git-lfs/blob/master/docs/api/batch.md
         let mut payload = object!{
@@ -160,12 +159,6 @@ pub mod lfs {
             req = req.basic_auth(username, password);
         } else if auth_token.is_some() {
             req = req.header(header::AUTHORIZATION, auth_token.unwrap())
-        }
-        
-        if let Some(user_agent) = user_agent {
-
-            trace!("setting user-agent to {:?}", &user_agent);
-            req = req.header(header::USER_AGENT, user_agent);
         }
 
         req = req.body(payload.to_string())
@@ -215,7 +208,6 @@ pub mod lfs {
         p : &path::Path, 
         target: &mut W,
         auth_callback: &dyn Fn(Url) -> (path::PathBuf, Option<String>),
-        user_agent: Option<String>,
     ) -> Result<bool, Error> {
         let (oid, size) = match parse_lfs_link_file(p)? {
             Some((o, s)) => (o, s),
@@ -227,13 +219,9 @@ pub mod lfs {
         let url = guess_lfs_url(repository.clone());
         debug!("attempting LFS download without further authentication");
 
-        let download_link = get_lfs_download_link(
-            &oid, &size, refspec.clone(), url, None, user_agent.clone()
-        );
-
-        match download_link {
+        match get_lfs_download_link(&oid, &size, refspec.clone(), url, None) {
             Ok((auth_token, url)) => {
-                download_lfs_object(target, auth_token, &url, user_agent).map(|_| true)
+                download_lfs_object(target, auth_token, &url).map(|_| true)
             },
             // If - and only if - we got a 401 Unauthorized error, we retry
             // using an actual authentication token.
@@ -243,11 +231,9 @@ pub mod lfs {
 
                 let (private_key, passphrase) = auth_callback(repository.clone());
                 let (auth_token, url) = get_lfs_auth_token(repository, "download", private_key, passphrase)?;
-                let (auth_token, url) = get_lfs_download_link(
-                    &oid, &size, refspec, url, auth_token, user_agent.clone()
-                )?;
+                let (auth_token, url) = get_lfs_download_link(&oid, &size, refspec, url, auth_token)?;
 
-                download_lfs_object(target, auth_token, &url, user_agent).map(|_| true)
+                download_lfs_object(target, auth_token, &url).map(|_| true)
             },
             // Since we follow the Git LFS spec to guess the LFS server
             // URL, we expect any other error to be unrecoverable.
@@ -340,7 +326,6 @@ pub mod lfs {
         target : &mut W,
         auth_token : Option<String>,
         url : &String,
-        user_agent: Option<String>,
     ) -> Result<(), Error> {
         debug!("start downloading LFS object");
 
@@ -349,12 +334,6 @@ pub mod lfs {
 
         if auth_token.is_some() {
             req = req.header(header::AUTHORIZATION, auth_token.unwrap());
-        }
-
-        if let Some(user_agent) = user_agent {
-
-            trace!("setting user-agent to {:?}", &user_agent);
-            req = req.header(header::USER_AGENT, user_agent);
         }
 
         let mut res = req.send()?;
