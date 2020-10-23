@@ -162,8 +162,7 @@ pub mod lfs {
             req = req.header(header::AUTHORIZATION, auth_token.unwrap())
         }
         
-        if user_agent.is_some() {
-            let user_agent = user_agent.unwrap();
+        if let Some(user_agent) = user_agent {
 
             trace!("setting user-agent to {:?}", &user_agent);
             req = req.header(header::USER_AGENT, user_agent);
@@ -352,8 +351,7 @@ pub mod lfs {
             req = req.header(header::AUTHORIZATION, auth_token.unwrap());
         }
 
-        if user_agent.is_some() {
-            let user_agent = user_agent.unwrap();
+        if let Some(user_agent) = user_agent {
 
             trace!("setting user-agent to {:?}", &user_agent);
             req = req.header(header::USER_AGENT, user_agent);
