@@ -58,8 +58,8 @@ A statically linked, native, platform agnostic Git-based Package Manager written
 * Windows:
   * cmd.exe: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz | tar xvzf -`
   * PowerShell: `$tmp = New-TemporaryFile ; Invoke-WebRequest -OutFile $tmp https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz ; tar xf $tmp`
-  
-    In order to call `gpm` from anywhere, you must add its path to the `PATH` [environment variable](https://docs.microsoft.com/en-us/windows/win32/procthread/environment-variables).
+
+  In order to call `gpm` from anywhere, you must add its path to the `PATH` [environment variable](https://docs.microsoft.com/en-us/windows/win32/procthread/environment-variables).
 
 ## 2. Background
 
