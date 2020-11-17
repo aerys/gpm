@@ -239,10 +239,10 @@ gpm update
 4. Install your package:
 
 ```bash
-gpm install hello-world/0.1.0 --prefix ~/
+gpm install hello-world=0.1.0 --prefix ~/
 ```
 
-Your `hello-world/0.1.0` package is now installed and you can run it with `sh ~/hello-world.sh`.
+The version `0.1.0`of your `hello-world` package is now installed and you can run it with `sh ~/hello-world.sh`.
 
 ## 7. Authentication
 
