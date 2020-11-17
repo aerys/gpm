@@ -226,7 +226,7 @@ Your `hello-world/0.1.0` package is now stored in your package repository and ca
 2. Add your package repository to the `gpm` sources:
 
 ```bash
-mkdir -p ~/.gpm/sources.list
+mkdir -p ~/.gpm
 echo "ssh://path.to/my/package-repository.git" >> ~/.gpm/sources.list
 ```
 
