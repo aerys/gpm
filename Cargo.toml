@@ -3,6 +3,7 @@ name = "gpm"
 version = "0.15.0"
 authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 edition = "2018"
+resolver = "2"
 
 [profile.release]
 panic = "abort"
