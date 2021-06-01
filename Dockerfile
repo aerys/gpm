@@ -1,4 +1,4 @@
-FROM ekidd/rust-musl-builder:1.45.0
+FROM ekidd/rust-musl-builder:1.51.0
 
 # We need to add the source code to the image because `rust-musl-builder`
 # assumes a UID of 1000, but TravisCI has switched to 2000.
