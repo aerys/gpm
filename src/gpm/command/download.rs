@@ -94,7 +94,7 @@ impl DownloadPackageCommand {
 
                     (k.unwrap(), p)
                 },
-                Some(format!("gpm/{}", env!("VERGEN_SEMVER"))),
+                Some(format!("gpm/{}", env!("VERGEN_BUILD_SEMVER"))),
             ).map_err(CommandError::GitLFSError)?;
 
             let mut file = fs::OpenOptions::new()
