@@ -281,7 +281,7 @@ pub fn find_repo_by_package_and_revision(
         let repo = git2::Repository::open(path).map_err(CommandError::GitError)?;
 
         pb.inc(1);
-        pb.set_message(&remote);
+        pb.set_message(remote.clone());
 
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();

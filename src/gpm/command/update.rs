@@ -54,7 +54,7 @@ impl UpdatePackageRepositoriesCommand {
         for remote in repos {
             info!("updating repository {}", remote);
 
-            pb.set_message(&format!("updating {}", &remote));
+            pb.set_message(format!("updating {}", &remote));
 
             match gpm::git::get_or_clone_repo(&remote) {
                 Ok((repo, _is_new_repo)) => {

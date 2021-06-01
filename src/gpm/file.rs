@@ -124,7 +124,7 @@ pub fn extract_package(
 
     pb.set_style(ProgressStyle::default_spinner()
         .template("  [{elapsed_precise}] {wide_msg}"));
-    pb.finish_with_message(&format!("{}/{} extracted file(s)", num_extracted_files, num_files));
+    pb.finish_with_message(format!("{}/{} extracted file(s)", num_extracted_files, num_files));
 
     // info!("extracted {}/{} file(s)", num_extracted_files, num_files);
 
