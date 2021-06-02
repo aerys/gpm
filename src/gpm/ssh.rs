@@ -1,5 +1,5 @@
 use std::env;
-use std::path;
+use std::path::{Path, PathBuf};
 use std::io;
 use std::fs;
 use std::ops::Deref;
@@ -14,7 +14,7 @@ use base64::{decode};
 
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::gpm::command;
+use crate::gpm::command::{CommandError};
 
 const KEY_MAGIC: &[u8] = b"openssh-key-v1\0";
 
@@ -22,10 +22,32 @@ const KEY_MAGIC: &[u8] = b"openssh-key-v1\0";
 #[grammar = "gpm/ssh_config.pest"]
 pub struct SSHConfigParser;
 
-pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf>, command::CommandError> {
+fn expand_tilde<P: AsRef<Path>>(path_user_input: P) -> Option<PathBuf> {
+    let p = path_user_input.as_ref();
+    if !p.starts_with("~") {
+        return Some(p.to_path_buf());
+    }
+    if p == Path::new("~") {
+        return dirs::home_dir();
+    }
+    dirs::home_dir().map(|mut h| {
+        if h == Path::new("/") {
+            // Corner case: `h` root directory;
+            // don't prepend extra `/`, just drop the tilde.
+            p.strip_prefix("~").unwrap().to_path_buf()
+        } else {
+            h.push(p.strip_prefix("~/").unwrap());
+            h
+        }
+    })
+}
+
+pub fn find_ssh_key_in_ssh_config(
+    host : &String
+) -> Result<Option<PathBuf>, CommandError> {
     match dirs::home_dir() {
         Some(home_path) => {
-            let mut ssh_config_path = path::PathBuf::from(home_path);
+            let mut ssh_config_path = PathBuf::from(home_path);
 
             ssh_config_path.push(".ssh");
             ssh_config_path.push("config");
@@ -70,10 +92,11 @@ pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf
                             let value = key_and_value.find(|p| -> bool { p.as_rule() == Rule::value }).unwrap();
 
                             if key.as_str() == "IdentityFile" {
-                                let path = path::PathBuf::from(value.as_str());
-
+                                let path = PathBuf::from(value.as_str());
                                 trace!("found IdentityFile option with value {:?}", path);
-                                return Ok(Some(path));
+                                let path = expand_tilde(path);
+                                trace!("expanded path to {:?}", path);
+                                return Ok(path);
                             }
                         }
                     },
@@ -87,10 +110,10 @@ pub fn find_ssh_key_in_ssh_config(host : &String) -> Result<Option<path::PathBuf
     }
 }
 
-pub fn find_default_ssh_key() -> Option<path::PathBuf> {
+pub fn find_default_ssh_key() -> Option<PathBuf> {
     match dirs::home_dir() {
         Some(home_path) => {
-            let mut id_rsa_path = path::PathBuf::from(home_path);
+            let mut id_rsa_path = PathBuf::from(home_path);
 
             id_rsa_path.push(".ssh");
             id_rsa_path.push("id_rsa");
@@ -105,7 +128,7 @@ pub fn find_default_ssh_key() -> Option<path::PathBuf> {
     }
 }
 
-pub fn find_ssh_key_for_host(host : &String) -> Option<path::PathBuf> {
+pub fn find_ssh_key_for_host(host : &String) -> Option<PathBuf> {
     match find_ssh_key_in_ssh_config(host) {
         Ok(path) => match path {
             Some(_) => path,
@@ -203,11 +226,11 @@ pub fn ssh_key_requires_passphrase(
     return Ok(false);
 }
 
-pub fn get_ssh_key_and_passphrase(host : &String) -> (Option<path::PathBuf>, Option<String>) {
+pub fn get_ssh_key_and_passphrase(host : &String) -> (Option<PathBuf>, Option<String>) {
 
     let key = match env::var("GPM_SSH_KEY") {
         Ok(k) => {
-            let path = path::PathBuf::from(k);
+            let path = PathBuf::from(k);
 
             if path.exists() && path.is_file() {
                 Some(path)
