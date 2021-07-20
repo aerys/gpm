@@ -17,32 +17,42 @@ use crate::gpm::command::{CommandError};
 use crate::gpm::package::Package;
 
 pub fn get_git_credentials_callback(
-    remote : &String
 ) -> impl Fn(&str, Option<&str>, git2::CredentialType) -> Result<git2::Cred, git2::Error>
 {
-    let url : Url = remote.parse().unwrap();
-    let host = String::from(url.host_str().unwrap());
-
-    move |_user: &str, user_from_url: Option<&str>, cred: git2::CredentialType| -> Result<git2::Cred, git2::Error> {
+    move |remote: &str, username: Option<&str>, cred_type: git2::CredentialType| -> Result<git2::Cred, git2::Error> {
         trace!("entering git credentials callback");
 
-        let user = user_from_url.unwrap_or("git");
+        let url: Url = remote.parse().unwrap();
+        let username = username.unwrap_or("git");
 
-        if cred.contains(git2::CredentialType::USERNAME) {
+        if cred_type.contains(git2::CredentialType::USERNAME) {
             debug!("using username from URI");
-            return git2::Cred::username(user);
-        }
+            git2::Cred::username(username)
+        } else if url.username() != "" && url.password().is_some() {
+            debug!("using username and password from URI");
+            git2::Cred::userpass_plaintext(url.username(), url.password().unwrap())
+        } else {
+            debug!("using SSH key");
+            let host = String::from(url.host_str().unwrap());
+            let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host);
+            let (has_pass, passphrase) = match passphrase {
+                Some(p) => (true, p),
+                None => (false, String::new()),
+            };
 
-        debug!("using SSH key");
-        let (key, passphrase) = gpm::ssh::get_ssh_key_and_passphrase(&host);
-        let (has_pass, passphrase) = match passphrase {
-            Some(p) => (true, p),
-            None => (false, String::new()),
-        };
-
-        match key {
-            Some(k) => git2::Cred::ssh_key(user, None, &k, if has_pass { Some(passphrase.as_str()) } else { None }),
-            None => git2::Cred::default(),
+            match key {
+                Some(k) => git2::Cred::ssh_key(
+                    username,
+                    None,
+                    &k,
+                    if has_pass {
+                        Some(passphrase.as_str())
+                    } else {
+                        None
+                    }
+                ),
+                None => git2::Cred::default(),
+            }
         }
     }
 }
@@ -53,7 +63,7 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     let mut callbacks = git2::RemoteCallbacks::new();
     let mut origin_remote = repo.find_remote("origin")?;
     trace!("setup git credentials callback");
-    callbacks.credentials(gpm::git::get_git_credentials_callback(&String::from(origin_remote.url().unwrap())));
+    callbacks.credentials(gpm::git::get_git_credentials_callback());
 
     let oid = repo.refname_to_id("refs/remotes/origin/master")?;
     let object = repo.find_object(oid, None)?;
@@ -96,7 +106,7 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
 
     let mut callbacks = git2::RemoteCallbacks::new();
     trace!("setup git credentials callback");
-    callbacks.credentials(gpm::git::get_git_credentials_callback(remote));
+    callbacks.credentials(gpm::git::get_git_credentials_callback());
 
     let mut opts = git2::FetchOptions::new();
     opts.remote_callbacks(callbacks);
