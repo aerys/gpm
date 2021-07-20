@@ -12,6 +12,8 @@ use url::{Url};
 
 use crypto_hash::{Hasher, Algorithm};
 
+use tempfile::tempdir;
+
 use crate::gpm;
 use crate::gpm::command::{CommandError};
 use crate::gpm::package::Package;
@@ -79,21 +81,7 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
 }
 
 pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), CommandError> {
-    let path = remote_url_to_cache_path(remote)?;
-
-    if path.exists() {
-        debug!("use existing repository already in cache {}", path.to_str().unwrap());
-        return Ok((git2::Repository::open(path)?, false));
-    }
-
-    match path.parent() {
-        Some(parent) => if !parent.exists() {
-            debug!("create missing parent directory {}", parent.display());
-            fs::create_dir_all(parent).map_err(CommandError::IOError)?;
-        },
-        None => ()
-    };
-
+    let path = remote_url_to_cache_path(remote, true)?;
     let mut callbacks = git2::RemoteCallbacks::new();
     trace!("setup git credentials callback");
     callbacks.credentials(gpm::git::get_git_credentials_callback(remote));
@@ -124,8 +112,14 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
     }
 }
 
-pub fn remote_url_to_cache_path(remote : &String) -> Result<path::PathBuf, CommandError> {
-    let cache = gpm::file::get_or_init_cache_dir().map_err(CommandError::IOError)?;
+pub fn remote_url_to_cache_path(remote: &String, temp: bool) -> Result<path::PathBuf, CommandError> {
+    let cache = if temp {
+        // When the package repository URL is fully specified, we don't want to keep
+        // any persistent cache. Thus, we create a temporary cache directory.
+            tempdir().map_err(CommandError::IOError)?.into_path()
+        } else {
+            gpm::file::get_or_init_cache_dir().map_err(CommandError::IOError)?
+        };
     let hash = {
         let mut hasher = Hasher::new(Algorithm::SHA256);
 
@@ -277,7 +271,7 @@ pub fn find_repo_by_package_and_revision(
     for remote in remotes {
         debug!("searching in repository {}", remote);
 
-        let path = gpm::git::remote_url_to_cache_path(&remote)?;
+        let path = gpm::git::remote_url_to_cache_path(&remote, false)?;
         let repo = git2::Repository::open(path).map_err(CommandError::GitError)?;
 
         pb.inc(1);
