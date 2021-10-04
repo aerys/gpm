@@ -23,6 +23,7 @@ fn print_error(e: &dyn Error) {
 }
 
 fn main() {
+    openssl_probe::init_ssl_cert_env_vars();
     dotenv().ok();
 
     pretty_env_logger::init_custom_env("GPM_LOG");
