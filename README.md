@@ -1,4 +1,4 @@
-# GPM
+# 1. GPM <!-- omit in toc -->
 
 [![Build status](https://travis-ci.org/aerys/gpm.svg?branch=master)](https://travis-ci.org/aerys/gpm)
 [![Build status](https://ci.appveyor.com/api/projects/status/rxgs74va4o640vaa?svg=true)](https://ci.appveyor.com/project/promethe42/gpm)
@@ -7,50 +7,48 @@ A statically linked, native, platform agnostic Git-based Package Manager written
 
 ![demo](./demo.gif)
 
-<!-- TOC depthFrom:2 -->
-
 - [1. Install](#1-install)
 - [2. Background](#2-background)
 - [3. Features](#3-features)
 - [4. Security](#4-security)
 - [5. Build](#5-build)
-    - [5.1. Development build](#51-development-build)
-    - [5.2. Release (static) build](#52-release-static-build)
+  - [5.1. Development build](#51-development-build)
+  - [5.2. Release (static) build](#52-release-static-build)
 - [6. Getting started](#6-getting-started)
-    - [6.1. Creating a package repository](#61-creating-a-package-repository)
-    - [6.2. Publishing your first package](#62-publishing-your-first-package)
-    - [6.3. Installing your first package](#63-installing-your-first-package)
+  - [6.1. Creating a package repository](#61-creating-a-package-repository)
+  - [6.2. Publishing your first package](#62-publishing-your-first-package)
+  - [6.3. Installing your first package](#63-installing-your-first-package)
 - [7. Authentication](#7-authentication)
 - [8. Package reference notation](#8-package-reference-notation)
-    - [8.1. Package name](#81-package-name)
-        - [8.1.1. Shorthand notation](#811-shorthand-notation)
-        - [8.1.2. URI notation](#812-uri-notation)
-    - [8.2. Package version](#82-package-version)
-        - [8.2.1. SemVer notation](#821-semver-notation)
-        - [8.2.2. Git refspec notation](#822-git-refspec-notation)
+  - [8.1. Package name](#81-package-name)
+    - [8.1.1. Shorthand notation](#811-shorthand-notation)
+    - [8.1.2. URI notation](#812-uri-notation)
+  - [8.2. Package version](#82-package-version)
+    - [8.2.1. SemVer notation](#821-semver-notation)
+    - [8.2.2. Git refspec notation](#822-git-refspec-notation)
 - [9. Matching package references](#9-matching-package-references)
 - [10. Working with multiple package repositories](#10-working-with-multiple-package-repositories)
 - [11. Logging](#11-logging)
 - [12. Commands](#12-commands)
-    - [12.1. `update`](#121-update)
-    - [12.2. `clean`](#122-clean)
-    - [12.3. `install`](#123-install)
-    - [12.4. `download`](#124-download)
+  - [12.1. `update`](#121-update)
+  - [12.2. `clean`](#122-clean)
+  - [12.3. `install`](#123-install)
+  - [12.4. `download`](#124-download)
 - [13. Integrations](#13-integrations)
-    - [13.1. Travis CI](#131-travis-ci)
-    - [13.2. AppVeyor](#132-appveyor)
-    - [13.3. GitLab CI](#133-gitlab-ci)
-    - [13.4. GitLab Releases](#134-gitlab-releases)
-    - [13.5. GitHub Releases](#135-github-releases)
+  - [13.1. Travis CI](#131-travis-ci)
+  - [13.2. AppVeyor](#132-appveyor)
+  - [13.3. GitLab CI](#133-gitlab-ci)
+  - [13.4. GitLab Releases](#134-gitlab-releases)
+  - [13.5. GitHub Releases](#135-github-releases)
 - [14. FAQ](#14-faq)
-    - [14.1. Why GPM?](#141-why-gpm)
-    - [14.2. Why Git? Why not just `curl` or `wget` or whatever?](#142-why-git-why-not-just-curl-or-wget-or-whatever)
-    - [14.3. But Git does not like large binary files!](#143-but-git-does-not-like-large-binary-files)
-    - [14.4. Why storing packages as `*.tar.gz` archives?](#144-why-storing-packages-as-targz-archives)
+  - [14.1. Why GPM?](#141-why-gpm)
+  - [14.2. Why Git? Why not just `curl` or `wget` or whatever?](#142-why-git-why-not-just-curl-or-wget-or-whatever)
+  - [14.3. But Git does not like large binary files!](#143-but-git-does-not-like-large-binary-files)
+  - [14.4. Why storing packages as `*.tar.gz` archives?](#144-why-storing-packages-as-targz-archives)
 - [15. Contributing](#15-contributing)
-- [16. License](#16-license)
-
-<!-- /TOC -->
+- [16. Troubleshooting](#16-troubleshooting)
+  - [16.1. "Failed to authenticate SSH session" error on Windows](#161-failed-to-authenticate-ssh-session-error-on-windows)
+- [17. License](#17-license)
 
 ## 1. Install
 
@@ -257,6 +255,8 @@ Otherwise, the following authentication methods are supported:
 
 If URL encoded HTTP basic authentication is used, no additional authentication is required.
 Otherwise, `gpm` will assume SSH public/private key authentication is used.
+
+**Attention**: Windows users please read ["Failed to authenticate SSH session" error on Windows](#failed-to-authenticate-ssh-session-error-on-windows).
 
 If SSH public/private key authentication is used:
 
@@ -737,6 +737,19 @@ package archive is stored compressed.
 * [Bug tracker](https://github.com/aerys/gpm/issues?q=is%3Aopen+is%3Aissue+label%3Abug)
 * [Questions](https://github.com/aerys/gpm/issues?q=is%3Aopen+is%3Aissue+label%3Aquestion)
 
-## 16. License
+## 16. Troubleshooting
+
+### 16.1. "Failed to authenticate SSH session" error on Windows
+
+On Windows, only SSH private keys in the PEM format are supported. This is a limitation of libssh2 specific to Windows. Not a limitation of GPM.
+
+To convert your SSH private key to the PEM format, please use the
+following command:
+
+```
+ssh-keygen.exe -m pem -f .\id_rsa -p
+```
+
+## 17. License
 
 MIT
