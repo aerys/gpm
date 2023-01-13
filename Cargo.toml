@@ -15,7 +15,7 @@ opt-level = "z"
 path = "./gitlfs"
 
 [dependencies]
-clap = "2.33.0"
+clap = "2.34.0"
 tempfile = "3.1.0"
 log = "0.4.8"
 pretty_env_logger = "0.4.0"
