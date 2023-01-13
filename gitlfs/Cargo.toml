@@ -8,6 +8,6 @@ url = "2.1.1"
 ssh2 = "0.9.1"
 json = "0.12.4"
 reqwest = { version = "0.11.3", features = ["blocking"] }
-log = "0.4.8"
+log = "0.4.17"
 crypto-hash = "0.3.4"
 err-derive = "0.3.1"
