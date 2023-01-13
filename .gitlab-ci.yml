@@ -67,6 +67,9 @@ build:linux64:
     expire_in: 2 hr
     paths:
       - gpm
+  before_script:
+    - docker info
+    - docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
   script:
     - ./script/build-release.sh
 
