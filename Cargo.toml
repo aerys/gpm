@@ -41,5 +41,5 @@ zeroize = "1.5.7"
 openssl-probe = "0.1.5"
 
 [build-dependencies]
-vergen = { version = "5.1.17", default-features = false, features = ["build"]}
+vergen = { version = "7.5.0", default-features = false, features = ["build"]}
 anyhow = "1.0.68"
