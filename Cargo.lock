@@ -412,9 +412,9 @@ dependencies = [
 
 [[package]]
 name = "err-derive"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcc7f65832b62ed38939f98966824eb6294911c3629b0e9a262bfb80836d9686"
+checksum = "c34a887c8df3ed90498c1c437ce21f211c8e27672921a8ffa293cb8d6d4caa9e"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
