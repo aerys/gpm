@@ -42,4 +42,4 @@ openssl-probe = "0.1.5"
 
 [build-dependencies]
 vergen = { version = "7.5.1", default-features = false, features = ["build"]}
-anyhow = "1.0.69"
+anyhow = "1.0.70"
