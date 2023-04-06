@@ -16,7 +16,7 @@ path = "./gitlfs"
 
 [dependencies]
 clap = "2.34.0"
-tempfile = "3.4.0"
+tempfile = "3.5.0"
 log = "0.4.17"
 pretty_env_logger = "0.4.0"
 git2 = "0.16.0"
