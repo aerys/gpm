@@ -1,4 +1,4 @@
-FROM registry.aerys.in/aerys/infrastructure/vendor/rust-docker/x86_64-unknown-linux-musl:1.66.0-1
+FROM registry.aerys.in/aerys/infrastructure/vendor/rust-docker/x86_64-unknown-linux-musl:1.72.0-1
 
 ENV UPX_VERSION=4.0.0
 
