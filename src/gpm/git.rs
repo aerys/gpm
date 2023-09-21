@@ -65,23 +65,23 @@ pub fn pull_repo(repo : &git2::Repository) -> Result<(), git2::Error> {
     trace!("setup git credentials callback");
     callbacks.credentials(gpm::git::get_git_credentials_callback());
 
-    let oid = repo.refname_to_id("refs/remotes/origin/master")?;
+    let oid = repo.refname_to_id("refs/remotes/origin/main")?;
     let object = repo.find_object(oid, None)?;
-    trace!("reset master to HEAD");
+    trace!("reset main to HEAD");
     repo.reset(&object, git2::ResetType::Hard, None)?;
 
     let mut builder = git2::build::CheckoutBuilder::new();
     builder.force();
-    repo.set_head("refs/heads/master")?;
+    repo.set_head("refs/heads/main")?;
     trace!("checkout head");
     repo.checkout_head(Some(&mut builder))?;
 
-    debug!("reset head to master");
+    debug!("reset head to main");
     
     let mut opts = git2::FetchOptions::new();
     opts.remote_callbacks(callbacks);
 
-    origin_remote.fetch(&["master"], Some(&mut opts), None)?;
+    origin_remote.fetch(&["main"], Some(&mut opts), None)?;
 
     debug!("fetched changes");
 
@@ -114,7 +114,7 @@ pub fn get_or_clone_repo(remote : &String) -> Result<(git2::Repository, bool), C
 
     let mut builder = git2::build::RepoBuilder::new();
     builder.fetch_options(opts);
-    builder.branch("master");
+    builder.branch("main");
 
     debug!("start cloning repository {} in {}", remote, path.to_str().unwrap());
 
@@ -295,7 +295,7 @@ pub fn find_repo_by_package_and_revision(
 
         let mut builder = git2::build::CheckoutBuilder::new();
         builder.force();
-        repo.set_head("refs/heads/master")?;
+        repo.set_head("refs/heads/main")?;
         repo.checkout_head(Some(&mut builder))?;
 
         match package.find(&repo) {
