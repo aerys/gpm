@@ -66,7 +66,7 @@ build:linux64:
   artifacts:
     expire_in: 2 hr
     paths:
-      - gpm
+      - target/x86_64-unknown-linux-musl/release/gpm
   before_script:
     - docker info
     - docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
@@ -140,7 +140,7 @@ publish:linux64:
     PACKAGE_VERSION: ${CI_COMMIT_TAG}
     PACKAGE_REPOSITORY: https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/aerys/gpm-packages.git
     PACKAGE_NAME: ${CI_PROJECT_NAME}-linux64
-    PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR}
+    PACKAGE_ARCHIVE_ROOT: ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release
     PACKAGE_CONTENT: gpm
     PACKAGE_CHANGELOG: ${CI_PROJECT_DIR}/CHANGELOG.md
 
