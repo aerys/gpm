@@ -86,7 +86,7 @@ build:windows64:
 
 changelog:
   stage: changelog
-  image: registry.aerys.in/aerys/gitlab-flow-release:latest
+  image: registry.aerys.in/aerys/gitlab-flow-release:0.5.0
   only:
     - tags
   variables:
