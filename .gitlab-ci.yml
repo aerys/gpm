@@ -32,7 +32,7 @@ stages:
     - git push --tags
 
 .github_release_template: &github_release_template
-  image: alpine:3.18.5
+  image: alpine:3.19.0
   only:
     - tags
   dependencies:
