@@ -53,6 +53,7 @@ A statically linked, native, platform agnostic Git-based Package Manager written
 ## 1. Install
 
 * Linux: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-linux64/gpm-linux64.tar.gz | tar xvz`
+  * Arch linux [AUR](https://aur.archlinux.org/packages/git-gpm-bin)
 * Windows:
   * cmd.exe: `curl -Ls https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz | tar xvzf -`
   * PowerShell: `$tmp = New-TemporaryFile ; Invoke-WebRequest -OutFile $tmp https://github.com/aerys/gpm-packages/raw/master/gpm-windows64/gpm-windows64.tar.gz ; tar xf $tmp`
