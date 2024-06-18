@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jean-Marc Le Roux <jeanmarc.leroux@aerys.in>"]
 
 [dependencies]
-url = "2.5.1"
+url = "2.5.2"
 ssh2 = "0.9.4"
 json = "0.12.4"
 reqwest = { version = "0.12.5", features = ["blocking"] }
